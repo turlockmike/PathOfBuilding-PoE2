@@ -8117,7 +8117,11 @@ minions["Metadata/Monsters/BogBodies/BogCorpseUnarmed"] = {
 minions["Metadata/Monsters/BogBodies/BogCorpseOneHandAxe"] = {
 	name = "Bogfelled Commoner",
 	monsterTags = { "1HAxe_onhit_audio", "humanoid", "melee", "monster_barely_moves", "physical_affinity", "undead", "uses_suicide_explode", "very_slow_movement", "zombie", },
-	life = 1,
+	-- Mike fork: corrected life multiplier from PoB-data 1 → 4 to match in-game
+	-- ground-truth (Mike 2026-05-01: Bog Life 154,936 vs PoB-default 38,849).
+	-- Wasp at multiplier 2 produces 82,672, so the level base is ~41k; Bog needs
+	-- ~4x to reach the in-game 155k. PoB's spectre data file appears stale.
+	life = 4,
 	baseDamageIgnoresAttackSpeed = true,
 	fireResist = 0,
 	coldResist = 30,

@@ -6451,6 +6451,18 @@ skills["SupportPotentExposurePlayer"] = {
 			label = "Potent Exposure",
 			incrementalEffectiveness = 0.054999999701977,
 			statDescriptionScope = "gem_stat_descriptions",
+			-- Mike fork: wire the +% increased effect of applied exposure.
+			-- CalcPerform.lua:3068 queries `<element>ExposureEffect` INC; we
+			-- emit all three so Potent Exposure affects whichever element the
+			-- supported skill applies (Frost Bomb applies all three via the
+			-- all-elemental exposure path).
+			statMap = {
+				["exposure_effect_+%"] = {
+					mod("FireExposureEffect", "INC", nil),
+					mod("ColdExposureEffect", "INC", nil),
+					mod("LightningExposureEffect", "INC", nil),
+				},
+			},
 			baseFlags = {
 			},
 			constantStats = {
@@ -7588,6 +7600,14 @@ skills["SupportUpwellingPlayer"] = {
 			label = "Upwelling I",
 			incrementalEffectiveness = 0.054999999701977,
 			statDescriptionScope = "gem_stat_descriptions",
+			-- NOTE: Upwelling II is socketed in a non-mainSkill group (typically a
+			-- Persistent Buff like Blasphemy), so its statMap-emitted MinionModifier
+			-- mods would never propagate to env.minion.modDB (PoB only walks
+			-- env.player.mainSkill's supportList for that). We work around this by
+			-- having the Mike-extension `conditionNotFullMana` config option in
+			-- ConfigOptions.lua emit the +X% minion damage globally on the player's
+			-- modDB when set, scaling by the Upwelling tier socketed.
+
 			baseFlags = {
 			},
 			constantStats = {
@@ -7619,6 +7639,14 @@ skills["SupportUpwellingPlayerTwo"] = {
 			label = "Upwelling II",
 			incrementalEffectiveness = 0.054999999701977,
 			statDescriptionScope = "gem_stat_descriptions",
+			-- NOTE: Upwelling II is socketed in a non-mainSkill group (typically a
+			-- Persistent Buff like Blasphemy), so its statMap-emitted MinionModifier
+			-- mods would never propagate to env.minion.modDB (PoB only walks
+			-- env.player.mainSkill's supportList for that). We work around this by
+			-- having the Mike-extension `conditionNotFullMana` config option in
+			-- ConfigOptions.lua emit the +X% minion damage globally on the player's
+			-- modDB when set, scaling by the Upwelling tier socketed.
+
 			baseFlags = {
 			},
 			constantStats = {

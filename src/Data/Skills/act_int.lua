@@ -8844,6 +8844,18 @@ skills["FrostBombPlayer"] = {
 					mod("ColdExposure", "BASE", nil, 0, 0, { type = "GlobalEffect", effectType = "Debuff" }),
 					mult = -1
 				},
+				-- Mike fork: wire all-elemental exposure (the constantStat is already
+				-- 20 in Frost Bomb's data block, and Frost Bomb canonical text says
+				-- "Each pulse inflicts Elemental Exposure on nearby enemies" — this
+				-- maps to Fire/Cold/Lightning all reduced equally). Pre-fork PoB only
+				-- handled the cold-specific stat; the all-elemental path was
+				-- statMap-dead.
+				['active_skill_all_elemental_exposure_magnitude'] = {
+					mod("FireExposure", "BASE", nil, 0, 0, { type = "GlobalEffect", effectType = "Debuff" }),
+					mod("ColdExposure", "BASE", nil, 0, 0, { type = "GlobalEffect", effectType = "Debuff" }),
+					mod("LightningExposure", "BASE", nil, 0, 0, { type = "GlobalEffect", effectType = "Debuff" }),
+					mult = -1
+				},
 			},
 			baseFlags = {
 				spell = true,

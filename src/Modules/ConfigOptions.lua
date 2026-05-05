@@ -929,6 +929,65 @@ Huge sets the radius to 11.
 	{ var = "conditionUsingFlask", type = "check", label = "Do you have a Flask active?", ifCond = "UsingFlask", tooltip = "This is automatically enabled if you have a flask active,\nbut you can use this option to force it if necessary.", apply = function(val, modList, enemyModList)
 		modList:NewMod("Condition:UsingFlask", "FLAG", true, "Config", { type = "Condition", var = "Combat" })
 	end },
+	-- Mike-extension: force Infernal Legion ticks to always crit. Models the
+	-- in-game truth that on a stationary target the highest-magnitude tick
+	-- wins per cycle, so over enough ticks the crit case dominates. Both the
+	-- minion-side IL skill and any minion modlist gets the flag, so the
+	-- preDamageFunc check at minion.lua picks it up.
+	{ var = "conditionIlAlwaysCrits", type = "check", label = "Infernal Legion always Crits?", ifCond = "IlAlwaysCrits", tooltip = "Forces 100% Crit Chance for the Infernal Legion ticks. Models the per-tick highest-magnitude-wins mechanic on stationary targets.", apply = function(val, modList, enemyModList)
+		modList:NewMod("Condition:IlAlwaysCrits", "FLAG", true, "Config")
+		-- Propagate the flag AND a direct CritChance OVERRIDE to the minion side so
+		-- the IL skill's CalcOffence pass sees crit override = 100. PoB checks
+		-- :Override(cfg, "CritChance") at line 3395 of CalcOffence.lua and if the
+		-- override is 100, sets CritChance to 100 outright (line 3415-3418).
+		modList:NewMod("MinionModifier", "LIST", { mod = modLib.createMod("Condition:IlAlwaysCrits", "FLAG", true, "Config") }, "Config")
+		modList:NewMod("MinionModifier", "LIST", { mod = modLib.createMod("CritChance", "OVERRIDE", 100, "IL Always Crits", { type = "Condition", var = "IlAlwaysCrits" }) }, "Config")
+	end },
+	-- Mike-extension: assume the player is NOT on Full Mana (mana is spent
+	-- constantly in combat). Activates Upwelling I/II's "while not on full
+	-- mana" minion-damage bonus. Distinct from conditionLowMana which would
+	-- also flip the Lich Necromantic Conduit's "not on Low Mana" → off and
+	-- kill Unholy Might. This config sets only Condition:NotFullMana (NOT
+	-- LowMana), so Upwelling activates while Necromantic Conduit stays on.
+	{ var = "conditionNotFullMana", type = "check", label = "Assume always NOT on Full ^x7070FFMana? (for Upwelling)", ifCond = "NotFullMana", tooltip = "Sets Condition:NotFullMana and (if Upwelling I/II socketed anywhere) emits the +30/+50% minion-damage bonus globally. Does NOT set LowMana, so Lich Necromantic Conduit's 'not on Low Mana' condition stays satisfied.", apply = function(val, modList, enemyModList, build)
+		modList:NewMod("Condition:NotFullMana", "FLAG", true, "Config")
+		modList:NewMod("MinionModifier", "LIST", { mod = modLib.createMod("Condition:NotFullMana", "FLAG", true, "Config") }, "Config")
+		-- Detect Upwelling I/II socketed in any group and emit the corresponding
+		-- minion-damage INC bonus on the player's modDB. PoB's standard support
+		-- cascade can't propagate this from a non-mainSkill group; this Mike-
+		-- extension closes the gap.
+		if build and build.skillsTab and build.skillsTab.socketGroupList then
+			local upwellingPercent = 0
+			local potentExposureActive = false
+			for _, sg in ipairs(build.skillsTab.socketGroupList) do
+				if sg.enabled and (sg.slotEnabled == nil or sg.slotEnabled) then
+					for _, gem in ipairs(sg.gemList or {}) do
+						if gem.enabled and gem.nameSpec then
+							if gem.nameSpec == "Upwelling II" and upwellingPercent < 50 then
+								upwellingPercent = 50
+							elseif gem.nameSpec == "Upwelling I" and upwellingPercent < 30 then
+								upwellingPercent = 30
+							elseif gem.nameSpec == "Potent Exposure" then
+								potentExposureActive = true
+							end
+						end
+					end
+				end
+			end
+			if upwellingPercent > 0 then
+				modList:NewMod("MinionModifier", "LIST", { mod = modLib.createMod("Damage", "INC", upwellingPercent, "Upwelling (Mike-ext)") }, "Config")
+			end
+			if potentExposureActive then
+				-- Emit +20% increased effect of all elemental exposures on the player's
+				-- modDB. CalcPerform.lua:3068 queries modDB:Sum("INC",nil,"<elem>ExposureEffect")
+				-- when applying exposure magnitude. Support-gem mods normally don't
+				-- reach env.modDB; this Mike-ext bridges the gap.
+				modList:NewMod("FireExposureEffect", "INC", 20, "Potent Exposure (Mike-ext)")
+				modList:NewMod("ColdExposureEffect", "INC", 20, "Potent Exposure (Mike-ext)")
+				modList:NewMod("LightningExposureEffect", "INC", 20, "Potent Exposure (Mike-ext)")
+			end
+		end
+	end },
 	{ var = "conditionNoLifeFlaskUsesLeft", type = "check", label = "Are you out of Life Flask uses?", ifCond = "NoLifeFlaskUsesLeft", tooltip = "This is automatically enabled if you have a flask active,\nbut you can use this option to force it if necessary.", apply = function(val, modList, enemyModList)
 		modList:NewMod("Condition:NoLifeFlaskUsesLeft", "FLAG", true, "Config", { type = "Condition", var = "Combat" })
 	end },

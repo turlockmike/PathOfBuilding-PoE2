@@ -1071,6 +1071,150 @@ skills["MPSAncestralTotemSpiritSoulCasterProjectile"] = {
 					},
 				}
 			}
+			skills["InfernalLegion"] = {
+				name = "Infernal Legion",
+				hidden = true,
+				skillTypes = {
+					[SkillType.Damage] = true,
+					[SkillType.Area] = true,
+					[SkillType.Fire] = true,
+					[SkillType.CausesBurning] = true,
+				},
+				qualityStats = {
+				},
+				levels = {
+					[1] = { levelRequirement = 0, },
+				},
+				preDamageFunc = function(activeSkill, output)
+					local skillData = activeSkill.skillData
+					local sml = activeSkill.skillModList
+					local cfg = activeSkill.skillCfg
+					-- Mike-extension: fold AilmentMagnitude(Ignite) MORE into the
+					-- FireBonus so SF2's "+100% Magnitude of Ignite" surfaces as a
+					-- damage gain. The IL ignite proc IS the build's damage source
+					-- (per Mike's correction 2026-04-26 + ground-truth files); PoB's
+					-- standard ignite-on-hit pipeline doesn't fully capture this for
+					-- the IL skill (the AilmentMagnitude mod reaches the skill but
+					-- isn't applied to the reported TotalDPS). Folding it into
+					-- FireBonus makes both hit-equivalent and downstream ignite scale
+					-- proportionally; matches the in-game "ignite is the damage"
+					-- mental model. Toggle off via conditionIlNoIgniteMagFold=true.
+					local igniteMagMore = 1
+					if sml and not sml:Flag(cfg, "Condition:IlNoIgniteMagFold") then
+						-- KeywordFlag.Ignite = 0x00800000 (per Data/Global.lua:284)
+						local ignCfg = { skillName = cfg and cfg.skillName, keywordFlags = bit.bor((cfg and cfg.keywordFlags or 0), 0x00800000) }
+						igniteMagMore = sml:More(ignCfg, "AilmentMagnitude") or 1
+					end
+					-- Mike-extension: in-game IL converts ALL of the minion's per-hit
+					-- damage components (phys, cold, lightning, chaos, fire) to fire
+					-- and folds them into the IL ignite proc's base. Empirically
+					-- confirmed via player testing 2026-05-05 ("Evergrasping and
+					-- unholy might with xoph is converted all to fire"). PoB's calc
+					-- doesn't model this — pre-patch, IL base = 25% × Life only.
+					-- This pulls the minion's basic-attack damage components from its
+					-- mainSkill output (computed earlier in the activeSkillList pass)
+					-- and adds the average per-hit non-fire damage to the IL fire base.
+					-- Toggle off via conditionIlNoAddedConversion=true.
+					-- IL converts all non-fire added damage to fire (in-game mechanic
+					-- per player testing 2026-05-05). The "added damage" referred to
+					-- includes:
+					--   1. Flat added damage from supports/gear/jewels (BASE Min/Max
+					--      across all 5 damage types in the minion's modDB).
+					--   2. %gain-as-extra-X-damage modifiers (e.g., Unholy Might gives
+					--      30% chaos as extra; Xoph's Pyre routes fire→chaos which then
+					--      gets re-converted to fire by IL).
+					--
+					-- Implementation strategy:
+					-- (a) Sum minion modDB BASE flat-added damage across all damage types
+					--     and add directly to IL's fire base (each is a per-hit flat that
+					--     IL absorbs and emits as fire).
+					-- (b) Sum %gain-as-extra mods and apply them as a multiplier on the
+					--     existing 25%×Life IL base — because gain-as-extra applies to
+					--     hit damage, and IL's hit IS the 25%×Life ignite proc, with the
+					--     extra-X portion converted back to fire by IL itself.
+					--
+					-- Toggle off via conditionIlNoAddedConversion=true.
+					local convertedBase = 0
+					local extraGainMult = 0
+					local _il_diag = os.getenv and os.getenv("POB2H_IL_DIAG") == "1"
+					if sml and not sml:Flag(cfg, "Condition:IlNoAddedConversion")
+						and activeSkill.actor and activeSkill.actor.modDB then
+						local mdb = activeSkill.actor.modDB
+						-- Flat-added damage from the minion's hit, all converted to fire.
+						for _, dt in ipairs({ "Physical", "Fire", "Cold", "Lightning", "Chaos" }) do
+							local lo = mdb:Sum("BASE", nil, dt .. "Min") or 0
+							local hi = mdb:Sum("BASE", nil, dt .. "Max") or 0
+							convertedBase = convertedBase + (lo + hi) / 2
+						end
+						-- %gain-as-extra mods (Unholy Might et al). Cover the canonical
+						-- PoE2 stat names; in-game the chat confirms phys→chaos and
+						-- damage-gain-as-X paths land here.
+						local gainNames = {
+							"PhysicalDamageGainAsChaos",
+							"PhysicalDamageGainAsCold",
+							"PhysicalDamageGainAsLightning",
+							"PhysicalDamageGainAsFire",
+							"DamageGainAsChaos",
+							"DamageGainAsCold",
+							"DamageGainAsLightning",
+							"DamageGainAsFire",
+							"FireDamageGainAsChaos",
+						}
+						for _, name in ipairs(gainNames) do
+							local v = mdb:Sum("BASE", nil, name) or 0
+							extraGainMult = extraGainMult + v
+						end
+						if _il_diag then
+							io.stderr:write(string.format(
+								"[il_diag-conv] flatAdded=%.0f extraGain=%d%% (Life*mult=%.0f → +%.0f from gain)\n",
+								convertedBase, extraGainMult,
+								output.Life * skillData.selfFireExplosionLifeMultiplier,
+								output.Life * skillData.selfFireExplosionLifeMultiplier * extraGainMult / 100))
+						end
+					end
+					-- IL fire base = (Life × selfFireExplosionLifeMultiplier × (1 + gain-as-extra%))
+					-- + flat-added (already pre-converted to fire equivalent), all then
+					-- amplified by ignite magnitude.
+					local lifeBase = output.Life * skillData.selfFireExplosionLifeMultiplier
+					local base = (lifeBase * (1 + extraGainMult / 100) + convertedBase) * igniteMagMore
+					skillData.FireBonusMin = base
+					skillData.FireBonusMax = base
+					-- IL always-crits override
+					if sml and sml:Flag(cfg, "Condition:IlAlwaysCrits") then
+						output.CritChance = 100
+					end
+				end,
+				statSets = {
+					[1] = {
+						label = "Infernal Legion",
+						incrementalEffectiveness = 0,
+						statDescriptionScope = "skill_stat_descriptions",
+						baseFlags = {
+							area = true,
+							fire = true,
+						},
+						baseMods = {
+							skill("selfFireExplosionLifeMultiplier", 0.01, { type = "Multiplier", var = "InfernalLegionBaseDamage" }),
+							skill("showAverage", true),
+							-- Mike fork: IL ticks at a fixed 1/sec ("30% of max life per
+							-- second" + "ignite enemies within 2m as though dealing 25% of
+							-- max life as base fire damage") — independent of the parent
+							-- minion's attack speed. Pre-fix, PoB inherited the minion's
+							-- attack-speed-derived rate (e.g. 1.68/sec for Wasp/Bog),
+							-- inflating IL DPS by the same factor. Force timeOverride=1
+							-- so CalcOffence.lua:2565 computes output.Speed = 1/1 = 1.0.
+							skill("timeOverride", 1),
+						},
+						constantStats = {
+						},
+						stats = {
+						},
+						levels = {
+							[1] = { },
+						},
+					},
+				}
+			}
 
 skills["GAAnimateWeaponMaceSlam"] = {
 	name = "Mace Slam",
