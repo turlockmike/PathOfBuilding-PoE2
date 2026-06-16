@@ -1094,6 +1094,136 @@ skills["MPSAncestralTotemSpiritSoulCasterProjectile"] = {
 					},
 				}
 			}
+			skills["InfernalLegion"] = {
+				name = "Infernal Legion",
+				hidden = true,
+				skillTypes = {
+					[SkillType.Damage] = true,
+					[SkillType.Area] = true,
+					[SkillType.Fire] = true,
+					[SkillType.CausesBurning] = true,
+				},
+				qualityStats = {
+				},
+				levels = {
+					[1] = { critChance = 5, levelRequirement = 0, },
+				},
+				preDamageFunc = function(activeSkill, output)
+					local skillData = activeSkill.skillData
+					local sml = activeSkill.skillModList
+					local cfg = activeSkill.skillCfg
+					-- IL's ignite proc folds in non-fire damage components only when
+					-- the corresponding <Type>CanIgnite flag is set on the minion's
+					-- modDB (i.e. an "all damage ignites" effect such as
+					-- Uul-Netol's Embrace, or per-type sources like Xoph's Pyre's
+					-- "chaos damage can ignite"). Fire damage is always folded.
+					--
+					-- Two contribution paths:
+					--   1. BASE flat-added per-type damage (Min/Max in modDB).
+					--   2. %gain-as-extra-X mods. The destination type is what
+					--      matters for ignite gating — e.g. PhysicalDamageGainAsCold
+					--      produces extra cold, gated by ColdCanIgnite.
+					--
+					-- Toggle off via conditionIlNoAddedConversion=true.
+					local convertedBase = 0
+					local extraGainMult = 0
+					local _il_diag = os.getenv and os.getenv("POB2H_IL_DIAG") == "1"
+					if sml and not sml:Flag(cfg, "Condition:IlNoAddedConversion")
+						and activeSkill.actor and activeSkill.actor.modDB then
+						local mdb = activeSkill.actor.modDB
+						local typeFlag = {
+							Physical  = "PhysicalCanIgnite",
+							Cold      = "ColdCanIgnite",
+							Lightning = "LightningCanIgnite",
+							Chaos     = "ChaosCanIgnite",
+						}
+						-- The flag can land on either the IL skill's modlist (e.g.
+						-- via support gem cascade — Xoph's Pyre sets it on the
+						-- supported skill) or on the minion's modDB (e.g. from a
+						-- passive node, item mod, or global minion buff). Either
+						-- counts.
+						local function ignites(dt)
+							if dt == "Fire" then return true end
+							local f = typeFlag[dt]
+							return sml:Flag(cfg, f) or mdb:Flag(nil, f)
+						end
+						-- Flat-added damage: only types whose CanIgnite flag is set.
+						for _, dt in ipairs({ "Physical", "Fire", "Cold", "Lightning", "Chaos" }) do
+							if ignites(dt) then
+								local lo = mdb:Sum("BASE", nil, dt .. "Min") or 0
+								local hi = mdb:Sum("BASE", nil, dt .. "Max") or 0
+								convertedBase = convertedBase + (lo + hi) / 2
+							end
+						end
+						-- Gain-as-extra: gated by destination type.
+						local gainByDest = {
+							Fire      = { "PhysicalDamageGainAsFire",      "DamageGainAsFire" },
+							Cold      = { "PhysicalDamageGainAsCold",      "DamageGainAsCold" },
+							Lightning = { "PhysicalDamageGainAsLightning", "DamageGainAsLightning" },
+							Chaos     = { "PhysicalDamageGainAsChaos",     "DamageGainAsChaos", "FireDamageGainAsChaos" },
+						}
+						for dest, mods in pairs(gainByDest) do
+							if ignites(dest) then
+								for _, name in ipairs(mods) do
+									extraGainMult = extraGainMult + (mdb:Sum("BASE", nil, name) or 0)
+								end
+							end
+						end
+						if _il_diag then
+							io.stderr:write(string.format(
+								"[il_diag-conv] flags{P=%s C=%s L=%s X=%s} flatAdded=%.0f extraGain=%d%% (Life*mult=%.0f → +%.0f from gain)\n",
+								tostring(mdb:Flag(nil, "PhysicalCanIgnite")),
+								tostring(mdb:Flag(nil, "ColdCanIgnite")),
+								tostring(mdb:Flag(nil, "LightningCanIgnite")),
+								tostring(mdb:Flag(nil, "ChaosCanIgnite")),
+								convertedBase, extraGainMult,
+								output.Life * skillData.selfFireExplosionLifeMultiplier,
+								output.Life * skillData.selfFireExplosionLifeMultiplier * extraGainMult / 100))
+						end
+					end
+					-- IL fire base = (Life × selfFireExplosionLifeMultiplier × (1 + gain-as-extra%))
+					-- + flat-added (already pre-converted to fire equivalent).
+					-- Ailment magnitude is applied downstream by the standard ignite path.
+					local lifeBase = output.Life * skillData.selfFireExplosionLifeMultiplier
+					local base = (lifeBase * (1 + extraGainMult / 100) + convertedBase)
+					skillData.FireBonusMin = base
+					skillData.FireBonusMax = base
+				end,
+				statSets = {
+					[1] = {
+						label = "Infernal Legion",
+						incrementalEffectiveness = 0,
+						statDescriptionScope = "skill_stat_descriptions",
+						baseFlags = {
+							area = true,
+							fire = true,
+						},
+						baseMods = {
+							skill("selfFireExplosionLifeMultiplier", 0.01, { type = "Multiplier", var = "InfernalLegionBaseDamage" }),
+							skill("showAverage", true),
+							-- IL ticks at a fixed 1/sec ("30% of max life per second" +
+							-- "ignite enemies within 2m as though dealing 25% of max life
+							-- as base fire damage") — independent of the parent minion's
+							-- attack speed. Stock PoB inherited the minion's
+							-- attack-speed-derived rate (e.g. 1.68/sec for Wasp/Bog),
+							-- inflating IL DPS by the same factor. Force timeOverride=1
+							-- so CalcOffence.lua:2565 computes output.Speed = 1/1 = 1.0.
+							skill("timeOverride", 1),
+							-- IL is a guaranteed ignite ("ignite as though dealing X"), not a
+							-- chance roll; force 100% ignite chance so PoE2 threshold-based ailment
+							-- chance does not throttle it (it otherwise lands ~1% of the time).
+							mod("EnemyIgniteChance", "BASE", 100),
+						},
+						constantStats = {
+						},
+						stats = {
+						},
+						levels = {
+							[1] = { },
+						},
+					},
+				}
+			}
 
 skills["GAAnimateWeaponMaceSlam"] = {
 	name = "Mace Slam",

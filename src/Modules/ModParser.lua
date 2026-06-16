@@ -801,6 +801,7 @@ local modNameList = {
 	["effect of poisons you inflict"] = { "AilmentEffect", keywordFlags = KeywordFlag.Poison },
 	["magnitude of ailments"] = "AilmentMagnitude",
 	["magnitude of ailments you inflict"] = "AilmentMagnitude",
+	["magnitude of damaging ailments"] = { "AilmentMagnitude", keywordFlags = bor(KeywordFlag.Poison, KeywordFlag.Bleed, KeywordFlag.Ignite) },
 	["magnitude of damaging ailments you inflict"] = { "AilmentMagnitude", keywordFlags = bor(KeywordFlag.Poison, KeywordFlag.Bleed, KeywordFlag.Ignite) },
 	["effect of lightning ailments"] = "EnemyShockMagnitude",
 	["effect of chill and shock on you"] = { "SelfChillEffect", "SelfShockEffect" },
