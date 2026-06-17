@@ -3320,6 +3320,20 @@ function calcs.perform(env, skipEHP)
 		return effect
 	end
 
+	-- Frost Bomb: Elemental Exposure compounds 2% per pulse (configured count) on top of the base 20%,
+	-- up to the skill's cap. Apply the resulting value directly so the exposure step picks it up.
+	local frostBombExposureCap = 0
+	for _, activeSkill in ipairs(env.player.activeSkillList) do
+		frostBombExposureCap = m_max(frostBombExposureCap, activeSkill.skillModList:GetMultiplier("FrostBombExposureCap", nil))
+	end
+	if frostBombExposureCap > 0 then
+		modDB:NewMod("Multiplier:FrostBombExposureCap", "BASE", frostBombExposureCap, "Frost Bomb") -- expose to player for the config option
+		local frostBombExposure = m_min(20 + 2 * modDB:GetMultiplier("FrostBombExposurePulse", nil), frostBombExposureCap)
+		for _, element in ipairs({ "Fire", "Cold", "Lightning" }) do
+			enemyDB:NewMod(element .. "Exposure", "BASE", frostBombExposure, "Frost Bomb")
+		end
+	end
+
 	-- Apply exposures
 	for _, element in ipairs({ "Fire", "Cold", "Lightning" }) do
 		if not modDB:Flag(nil, "ElementalEquilibrium") -- if Elemental Equilibrium isn't active we just process Exposure normally
