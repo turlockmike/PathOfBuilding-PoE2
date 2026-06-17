@@ -5208,6 +5208,23 @@ function calcs.offence(env, actor, activeSkill)
 					end
 				end
 
+				-- Stormfire: Shocked enemies take a portion of Ignite damage as extra Lightning damage
+				if env.mode_effective and ailment == "Ignite" then
+					local asLightning = skillModList:Sum("BASE", dotCfg, "IgniteAsExtraLightning")
+					if asLightning > 0 and enemyDB:Flag(nil, "Condition:Shocked") then
+						local lightResist = calcResistForType("Lightning", dotCfg)
+						local lightTakenInc = enemyDB:Sum("INC", dotCfg, "DamageTaken", "DamageTakenOverTime", "LightningDamageTaken", "LightningDamageTakenOverTime", "ElementalDamageTaken")
+						local lightTakenMore = enemyDB:More(dotCfg, "DamageTaken", "DamageTakenOverTime", "LightningDamageTaken", "LightningDamageTakenOverTime", "ElementalDamageTaken")
+						local lightEffMult = (1 - lightResist / 100) * (1 + lightTakenInc / 100) * lightTakenMore
+						effMult = effMult + asLightning / 100 * lightEffMult
+						globalOutput[ailment .. "EffMult"] = effMult
+						if globalBreakdown and globalBreakdown[ailment .. "EffMult"] then
+							t_insert(globalBreakdown[ailment .. "EffMult"], s_format("+ %.0f%% as Lightning (Stormfire) x %.3f ^8(Lightning effective DPS modifier)", asLightning, lightEffMult))
+							t_insert(globalBreakdown[ailment .. "EffMult"], s_format("= %.3f ^8(total effective DPS modifier with Lightning)", effMult))
+						end
+					end
+				end
+
 				local effectMod = calcLib.mod(skillModList, dotCfg, "AilmentEffect")
 				local activeAilments = m_min(ailmentStacks, maxStacks)
 				local ailmentDPSUncapped = baseVal * effectMod * rateMod * activeAilments * effMult
