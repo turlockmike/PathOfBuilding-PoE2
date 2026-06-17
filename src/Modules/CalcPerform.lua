@@ -712,6 +712,9 @@ local function doActorMisc(env, actor)
 			modDB:NewMod("Condition:CanWither", "FLAG", true, "Config")
 			local effect = modDB:Max(nil, "WitherEffectStack")
 			enemyDB:NewMod("ChaosDamageTaken", "INC", effect, "Withered", { type = "Multiplier", var = "WitheredStack", limit = 10 } )
+			if modDB:Flag(nil, "WitherIncreasesFireDamageTaken") then
+				enemyDB:NewMod("FireDamageTaken", "INC", effect, "Withered", { type = "Multiplier", var = "WitheredStack", limit = 10 } )
+			end
 		end
 		if modDB:Flag(nil, "Condition:CanInflictIncision") then
 			local effect = 10 * (1 + modDB:Sum("INC", nil, "IncisionEffect") / 100)
