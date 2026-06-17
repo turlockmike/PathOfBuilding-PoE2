@@ -5208,9 +5208,24 @@ function calcs.offence(env, actor, activeSkill)
 					end
 				end
 
-				-- Stormfire: Shocked enemies take a portion of Ignite damage as extra Lightning damage
+				-- Stormfire: Shocked enemies take a portion of Ignite damage as extra Lightning damage.
+				-- The effect comes from whichever skill is supported by Stormfire (the shock source), which
+				-- may be a different skill than the one igniting, so scan all active skills rather than only
+				-- the igniting one. This makes it apply to player and minion Ignite alike.
 				if env.mode_effective and ailment == "Ignite" then
-					local asLightning = skillModList:Sum("BASE", dotCfg, "IgniteAsExtraLightning")
+					local asLightning = 0
+					for _, otherSkill in ipairs(env.player.activeSkillList) do
+						if otherSkill.skillModList then
+							asLightning = m_max(asLightning, otherSkill.skillModList:Sum("BASE", nil, "IgniteAsExtraLightning"))
+						end
+					end
+					if env.minion and env.minion.activeSkillList then
+						for _, otherSkill in ipairs(env.minion.activeSkillList) do
+							if otherSkill.skillModList then
+								asLightning = m_max(asLightning, otherSkill.skillModList:Sum("BASE", nil, "IgniteAsExtraLightning"))
+							end
+						end
+					end
 					if asLightning > 0 and enemyDB:Flag(nil, "Condition:Shocked") then
 						local lightResist = calcResistForType("Lightning", dotCfg)
 						local lightTakenInc = enemyDB:Sum("INC", dotCfg, "DamageTaken", "DamageTakenOverTime", "LightningDamageTaken", "LightningDamageTakenOverTime", "ElementalDamageTaken")
