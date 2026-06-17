@@ -5164,6 +5164,10 @@ function calcs.offence(env, actor, activeSkill)
 			-- Over-stacking stacks increases the chance a critical is present
 			local ailmentCritChance = 100 * (1 - m_pow(1 - output.CritChance / 100, m_max(globalOutput[ailment .. "StackPotential"], 1)))
 			globalOutput[ailment .. "MagnitudeEffect"] = calcLib.mod(skillModList, dotCfg, "AilmentMagnitude")
+			if ailment == "Ignite" and enemyDB:Flag(nil, "Condition:IgniteAggravated") then
+				-- Aggravated Ignite deals 100% extra damage (mirrors Aggravated Bleed)
+				globalOutput[ailment .. "MagnitudeEffect"] = globalOutput[ailment .. "MagnitudeEffect"] * 2
+			end
 			local ailmentPercentBase = data.misc[ailment .. "PercentBase"] * globalOutput[ailment .. "MagnitudeEffect"]
 			local baseMinVal = calcAilmentDamage(ailment, ailmentCritChance, hitMin, 0, true) * ailmentPercentBase
 			local baseMaxVal = calcAilmentDamage(ailment, 100, hitMax, critMax, true) * ailmentPercentBase

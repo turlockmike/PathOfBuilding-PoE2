@@ -1772,6 +1772,9 @@ Huge sets the radius to 11.
 	{ var = "conditionEnemyIgnited", type = "check", label = "Is the enemy ^xB97123Ignited?", ifEnemyCond = "Ignited", implyCond = "Burning", tooltip = "This also implies that the enemy is ^xB97123Burning.", apply = function(val, modList, enemyModList)
 		enemyModList:NewMod("Condition:Ignited", "FLAG", true, "Config", { type = "Condition", var = "Effective" })
 	end },
+	{ var = "conditionIgniteAggravated", type = "check", label = "Is the ^xB97123Ignite^7 Aggravated?", ifEnemyCond = "Ignited", tooltip = "^xB97123Ignite ^7that has been Aggravated deals 100% extra damage.\nAggravated by sources such as Saitha's Spear.", apply = function(val, modList, enemyModList)
+		enemyModList:NewMod("Condition:IgniteAggravated", "FLAG", true, "Config", { type = "Condition", var = "Effective" })
+	end },
 	{ var = "multiplierIgniteOnEnemy", type = "count", label = "# of ^xB97123Ignites^7 on enemy (if not average):", ifFlag = "IgniteCanStack", implyCond = "Ignited", apply = function(val, modList, enemyModList)
 		enemyModList:NewMod("Multiplier:IgniteStacks", "BASE", val, "Config", { type = "Condition", var = "Effective" })
 	end },
