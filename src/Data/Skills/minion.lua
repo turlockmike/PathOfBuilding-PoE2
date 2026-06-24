@@ -1106,7 +1106,10 @@ skills["MPSAncestralTotemSpiritSoulCasterProjectile"] = {
 				qualityStats = {
 				},
 				levels = {
-					[1] = { critChance = 5, levelRequirement = 0, },
+					-- IL's ignite "hit" has no innate crit chance of its own; it can
+					-- only crit via the enemy's Critical Weakness (see the
+					-- CritChanceOnlyFromEnemy flag below).
+					[1] = { critChance = 0, levelRequirement = 0, },
 				},
 				preDamageFunc = function(activeSkill, output)
 					local skillData = activeSkill.skillData
@@ -1200,19 +1203,48 @@ skills["MPSAncestralTotemSpiritSoulCasterProjectile"] = {
 						},
 						baseMods = {
 							skill("selfFireExplosionLifeMultiplier", 0.01, { type = "Multiplier", var = "InfernalLegionBaseDamage" }),
-							skill("showAverage", true),
-							-- IL ticks at a fixed 1/sec ("30% of max life per second" +
-							-- "ignite enemies within 2m as though dealing 25% of max life
-							-- as base fire damage") — independent of the parent minion's
-							-- attack speed. Stock PoB inherited the minion's
+							-- IL deals no actual hit: the fire "hit" is a pseudo-hit that
+							-- exists only to seed the ignite magnitude ("ignite as though
+							-- dealing X"). Only the ignite damages the enemy. hitIsPseudoHit
+							-- zeroes the hit's contribution to DPS (see CalcOffence), while
+							-- the ignite is still derived from it. Not showAverage: IL is a
+							-- continuously-applied (sustained) ignite, so its DPS is the
+							-- sustained IgniteDPS, not a per-application burst.
+							skill("hitIsPseudoHit", true),
+							-- IL applies its ignite on a fixed cadence, independent of the
+							-- parent minion's attack speed. Stock PoB inherited the minion's
 							-- attack-speed-derived rate (e.g. 1.68/sec for Wasp/Bog),
-							-- inflating IL DPS by the same factor. Force timeOverride=1
-							-- so CalcOffence.lua:2565 computes output.Speed = 1/1 = 1.0.
-							skill("timeOverride", 1),
+							-- inflating IL DPS by the same factor. timeOverride pins the rate:
+							-- output.Speed = 1/timeOverride, so 1.25 -> 0.8 ignites/sec. That
+							-- makes ignite StackPotential = duration(4) * 0.8 = 3.2 = N, the
+							-- "rolling ignites" count that drives both the roll average and the
+							-- crit amplification exponent. 0.8/sec is an empirical fit from the
+							-- IL crit test matrix; it supersedes the earlier 1/sec design
+							-- assumption and is not yet confirmed against the in-game cadence.
+							skill("timeOverride", 1.25),
 							-- IL is a guaranteed ignite ("ignite as though dealing X"), not a
 							-- chance roll; force 100% ignite chance so PoE2 threshold-based ailment
 							-- chance does not throttle it (it otherwise lands ~1% of the time).
 							mod("EnemyIgniteChance", "BASE", 100),
+							-- IL's ignite "hit" has no inherent crit chance of its own: only
+							-- the enemy's Critical Weakness (SelfCritChance) seeds base crit
+							-- chance. The minion's *increased* crit chance scales that enemy
+							-- base — this, and "no crit at all without Critical Weakness",
+							-- were measured in the in-game IL crit test matrix. The minion's
+							-- "more" crit chance and the exclusion of flat "+X% to Critical
+							-- Hit Chance" base are kept by analogy (not separately tested).
+							-- Handled in CalcOffence's crit-chance block via this flag.
+							mod("CritChanceOnlyFromEnemy", "FLAG", true),
+							-- The minion's *increased* crit chance scales the enemy-provided
+							-- base at reduced effectiveness (0.5 per the IL crit test matrix);
+							-- consumed by CalcOffence's crit-chance block.
+							skill("critChanceIncreasedEffect", 0.5),
+							-- IL's ignite crits use IL's own base crit bonus (50%) instead of
+							-- the minion's 100% base, and the minion's *increased* crit damage
+							-- bonus applies at reduced effectiveness (0.5). Both per the IL crit
+							-- test matrix; consumed by CalcOffence's crit-multiplier block.
+							skill("critMultiplierBaseOverride", 50),
+							skill("critMultiplierIncreasedEffect", 0.5),
 						},
 						constantStats = {
 						},

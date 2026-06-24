@@ -3665,6 +3665,15 @@ function calcs.offence(env, actor, activeSkill)
 			end
 		else
 			local critOverride = skillModList:Override(cfg, "CritChance")
+			-- Infernal Legion's ignite "hit" ignores all self/minion critical hit
+			-- chance (innate base, plus base/increased/more from gear and passives,
+			-- and "always crit" overrides). Only the enemy's Critical Weakness
+			-- (SelfCritChance) can make it crit. IL's crit damage is a fixed +100%
+			-- (set via a CritMultiplier OVERRIDE on the skill, not here).
+			local critChanceOnlyFromEnemy = skillModList:Flag(cfg, "CritChanceOnlyFromEnemy")
+			if critChanceOnlyFromEnemy then
+				critOverride = nil
+			end
 			-- destructive link
 			if skillModList:Flag(cfg, "MainHandCritIsEqualToParent") then
 				critOverride = actor.parent.output.MainHand and actor.parent.output.MainHand.CritChance or actor.parent.weaponData1.CritChance
@@ -3683,6 +3692,10 @@ function calcs.offence(env, actor, activeSkill)
 			elseif baseCritFromParentMainHand then
 				baseCrit = actor.parent.weaponData1 and actor.parent.weaponData1.CritChance or baseCrit
 			end
+			-- IL never derives base crit from self/gear (incl. weapon-base overrides).
+			if critChanceOnlyFromEnemy then
+				baseCrit = 0
+			end
 
 			if critOverride == 100 then
 				output.PreEffectiveCritChance = 100
@@ -3693,8 +3706,14 @@ function calcs.offence(env, actor, activeSkill)
 				local inc = 0
 				local more = 1
 				if not critOverride then
-					base = skillModList:Sum("BASE", cfg, "CritChance") + (env.mode_effective and enemyDB:Sum("BASE", nil, "SelfCritChance") or 0)
-					inc = skillModList:Sum("INC", cfg, "CritChance") + (env.mode_effective and enemyDB:Sum("INC", nil, "SelfCritChance") or 0)
+					-- Infernal Legion (CritChanceOnlyFromEnemy): the minion's own BASE
+					-- crit chance does not seed the ignite — only the enemy's Critical
+					-- Weakness (SelfCritChance) provides base. The minion's *increased*
+					-- crit chance DOES scale that enemy-provided base (measured in the
+					-- in-game IL crit test matrix), so it is NOT zeroed here; "more" is
+					-- kept alongside it by analogy.
+					base = (critChanceOnlyFromEnemy and 0 or skillModList:Sum("BASE", cfg, "CritChance")) + (env.mode_effective and enemyDB:Sum("BASE", nil, "SelfCritChance") or 0)
+					inc = (skillData.critChanceIncreasedEffect or 1) * skillModList:Sum("INC", cfg, "CritChance") + (env.mode_effective and enemyDB:Sum("INC", nil, "SelfCritChance") or 0)
 					more = skillModList:More(cfg, "CritChance")
 				end
 				output.CritChance = (baseCrit + base) * (1 + inc / 100) * more
@@ -3793,8 +3812,12 @@ function calcs.offence(env, actor, activeSkill)
 			if skillModList:Flag(cfg, "NoCritMultiplier") then
 				output.CritMultiplier = 1
 			else
-				local extraDamage = skillModList:Sum("BASE", cfg, "CritMultiplier") / 100
-				local extraDamageInc = 1 + skillModList:Sum("INC", cfg, "CritMultiplier") / 100
+				-- IL substitutes its own base crit bonus (skillData.critMultiplierBaseOverride,
+				-- 50% per the IL crit test matrix) for the minion's 100% base, and applies the
+				-- minion's increased crit damage bonus at reduced effect (critMultiplierIncreasedEffect,
+				-- 0.5). Both default to normal (minion base, full increased) when absent.
+				local extraDamage = (skillData.critMultiplierBaseOverride or skillModList:Sum("BASE", cfg, "CritMultiplier")) / 100
+				local extraDamageInc = 1 + (skillData.critMultiplierIncreasedEffect or 1) * skillModList:Sum("INC", cfg, "CritMultiplier") / 100
 				local extraDamageMore = skillModList:More("MORE", cfg, "CritMultiplier")
 				extraDamage = extraDamage * extraDamageInc * extraDamageMore
 				local multiOverride = skillModList:Override(skillCfg, "CritMultiplier")
@@ -5161,7 +5184,11 @@ function calcs.offence(env, actor, activeSkill)
 				end
 			end
 
-			-- Over-stacking stacks increases the chance a critical is present
+			-- Over-stacking stacks increases the chance a critical is present: with
+			-- "highest-magnitude ailment applies", one crit among the N effective stacks
+			-- is the one ticking, so P(crit present) = 1-(1-p)^N. This is also Infernal
+			-- Legion's crit mechanic (multiple rolling ignites, the highest applies): p is
+			-- its malice-seeded crit chance, N = StackPotential (ignite duration * rate).
 			local ailmentCritChance = 100 * (1 - m_pow(1 - output.CritChance / 100, m_max(globalOutput[ailment .. "StackPotential"], 1)))
 			globalOutput[ailment .. "MagnitudeEffect"] = calcLib.mod(skillModList, dotCfg, "AilmentMagnitude")
 			if ailment == "Ignite" and enemyDB:Flag(nil, "Condition:IgniteAggravated") then
@@ -6145,6 +6172,17 @@ function calcs.offence(env, actor, activeSkill)
 		if breakdown and breakdown.SelfHitDamage then
 			breakdown.SelfHitDamage[#breakdown.SelfHitDamage] = nil -- Remove new line at the end
 		end
+	end
+
+	-- A pseudo-hit (e.g. Infernal Legion's ignite "as though dealing X") deals no
+	-- damage itself; it only seeds the ailment, which has already been derived from
+	-- the (separately-stored) hit damage above. Zero the hit's output aggregates so
+	-- the hit contributes nothing to DPS and is not shown as "Hit DPS"; only the
+	-- ignite/DoT remains in the combined total.
+	if skillData.hitIsPseudoHit then
+		output.AverageDamage = 0
+		output.AverageHit = 0
+		output.TotalDPS = 0
 	end
 
 	-- Calculate combined DPS estimate, including DoTs
