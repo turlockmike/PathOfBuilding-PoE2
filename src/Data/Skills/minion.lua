@@ -1132,6 +1132,59 @@ skills["MPSAncestralTotemSpiritSoulCasterProjectile"] = {
 				}
 			}
 
+			skills["InfernalLegion"] = {
+				name = "Infernal Legion",
+				hidden = true,
+				skillTypes = {
+					[SkillType.Damage] = true,
+					[SkillType.Area] = true,
+					[SkillType.Fire] = true,
+					[SkillType.CausesBurning] = true,
+				},
+				qualityStats = {
+				},
+				levels = {
+					[1] = { critChance = 0, levelRequirement = 0, }, -- only crits from enemy Critical Weakness
+				},
+				preDamageFunc = function(activeSkill, output)
+					local skillData = activeSkill.skillData
+					local sml = activeSkill.skillModList
+					local cfg = activeSkill.skillCfg
+					-- fake hit: flat fire flagged for Ignite feeds the ignite source damage
+					-- only, never the hit (X% of max life per the support stat)
+					local base = output.Life * skillData.selfFireExplosionLifeMultiplier
+					sml:NewMod("FireMin", "BASE", base, "Infernal Legion", 0, KeywordFlag.Ignite)
+					sml:NewMod("FireMax", "BASE", base, "Infernal Legion", 0, KeywordFlag.Ignite)
+					-- minion's increased crit chance/damage are half-effective for IL
+					sml:NewMod("CritChance", "INC", -0.5 * sml:Sum("INC", cfg, "CritChance"), "Infernal Legion")
+					sml:NewMod("CritMultiplier", "INC", -0.5 * sml:Sum("INC", cfg, "CritMultiplier"), "Infernal Legion")
+				end,
+				statSets = {
+					[1] = {
+						label = "Infernal Legion",
+						incrementalEffectiveness = 0,
+						statDescriptionScope = "skill_stat_descriptions",
+						baseFlags = {
+							area = true,
+							fire = true,
+						},
+						baseMods = {
+							skill("selfFireExplosionLifeMultiplier", 0.01, { type = "Multiplier", var = "InfernalLegionBaseDamage" }),
+							skill("timeOverride", 1.25), -- fixed ~0.8/sec ignite cadence, not attack speed
+							mod("EnemyIgniteChance", "BASE", 100),
+							mod("CritMultiplier", "BASE", -50), -- 50% base crit bonus, not the minion's 100%
+						},
+						constantStats = {
+						},
+						stats = {
+						},
+						levels = {
+							[1] = { },
+						},
+					},
+				}
+			}
+
 skills["GAAnimateWeaponMaceSlam"] = {
 	name = "Mace Slam",
 	hidden = true,
