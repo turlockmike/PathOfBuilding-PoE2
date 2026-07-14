@@ -3998,6 +3998,53 @@ function calcs.offence(env, actor, activeSkill)
 			output[damageType.."StoredCombinedAvg"] = 0
 		end
 
+		-- Fake-hit damage: flat damage keyword-flagged to a damaging ailment ("Poisons
+		-- the Enemy as though dealing X", Infernal Legion's burn) contributes to that
+		-- ailment's source damage but does not count as a hit. The ailment keyword only
+		-- declares the flat damage; it is evaluated through the plain hit cfg (adding
+		-- the ailment keyword to the cfg would wrongly pull in ignite/poison-context
+		-- damage modifiers), rebuilding the summed base with the flagged flat included.
+		local fakeHitAilments = { }
+		for _, fakeAilment in ipairs({ "Bleed", "Poison", "Ignite" }) do
+			local kwCfg = copyTable(cfg, true)
+			kwCfg.keywordFlags = bor(cfg.keywordFlags or 0, KeywordFlag[fakeAilment])
+			local fakeAdded = { }
+			local hasFake = false
+			for _, damageType in ipairs(dmgTypeList) do
+				local fakeMin = skillModList:Sum("BASE", kwCfg, damageType.."Min") - skillModList:Sum("BASE", cfg, damageType.."Min")
+				local fakeMax = skillModList:Sum("BASE", kwCfg, damageType.."Max") - skillModList:Sum("BASE", cfg, damageType.."Max")
+				if fakeMin ~= 0 or fakeMax ~= 0 then
+					hasFake = true
+				end
+				fakeAdded[damageType] = { min = fakeMin, max = fakeMax }
+			end
+			if hasFake then
+				t_insert(fakeHitAilments, fakeAilment)
+				-- swap in bases that include the flagged flat, redo conversion, store per-ailment
+				local savedBase = { }
+				for _, damageType in ipairs(dmgTypeList) do
+					local damageTypeMin, damageTypeMax = damageType.."Min", damageType.."Max"
+					savedBase[damageTypeMin] = output[damageTypeMin.."Base"]
+					savedBase[damageTypeMax] = output[damageTypeMax.."Base"]
+					local baseMultiplier = activeSkill.activeEffect.grantedEffectLevel.baseMultiplier or skillData.baseMultiplier or 1
+					local addedMult = calcLib.mod(skillModList, cfg, "Added"..damageType.."Damage", "AddedDamage")
+					output[damageTypeMin.."Base"] = savedBase[damageTypeMin] + fakeAdded[damageType].min * addedMult * baseMultiplier
+					output[damageTypeMax.."Base"] = savedBase[damageTypeMax] + fakeAdded[damageType].max * addedMult * baseMultiplier
+				end
+				for _, damageType in ipairs(dmgTypeList) do
+					local convMult = activeSkill.conversionTable[damageType].mult
+					local convertedMin, convertedMax = calcConvertedDamage(activeSkill, output, cfg, damageType)
+					local gainedMin, gainedMax = calcGainedDamage(activeSkill, output, cfg, damageType)
+					output[fakeAilment..damageType.."SummedMinBase"] = output[damageType.."MinBase"] * convMult + convertedMin + gainedMin
+					output[fakeAilment..damageType.."SummedMaxBase"] = output[damageType.."MaxBase"] * convMult + convertedMax + gainedMax
+				end
+				for _, damageType in ipairs(dmgTypeList) do
+					output[damageType.."MinBase"] = savedBase[damageType.."Min"]
+					output[damageType.."MaxBase"] = savedBase[damageType.."Max"]
+				end
+			end
+		end
+
 		-- Calculate hit damage for each damage type
 		local totalHitMin, totalHitMax, totalHitAvg = 0, 0, 0
 		local totalCritMin, totalCritMax, totalCritAvg = 0, 0, 0
@@ -4088,6 +4135,25 @@ function calcs.offence(env, actor, activeSkill)
 						output[damageType.."StoredHitAvg"] = damageTypeHitAvg
 						output[damageType.."StoredHitMin"] = damageTypeHitMin
 						output[damageType.."StoredHitMax"] = damageTypeHitMax
+					end
+
+					-- Evaluate fake-hit source damage for each flagged ailment with the same
+					-- pipeline and multipliers as the real hit (which excludes it)
+					for _, fakeAilment in ipairs(fakeHitAilments) do
+						local savedMin, savedMax = output[damageType.."SummedMinBase"], output[damageType.."SummedMaxBase"]
+						output[damageType.."SummedMinBase"] = output[fakeAilment..damageType.."SummedMinBase"]
+						output[damageType.."SummedMaxBase"] = output[fakeAilment..damageType.."SummedMaxBase"]
+						local fakeMin, fakeMax = calcDamage(activeSkill, output, cfg, nil, damageType, 0)
+						output[damageType.."SummedMinBase"], output[damageType.."SummedMaxBase"] = savedMin, savedMax
+						fakeMin = fakeMin * allMult
+						fakeMax = fakeMax * allMult
+						if pass == 1 then
+							output[fakeAilment..damageType.."StoredCritMin"] = fakeMin
+							output[fakeAilment..damageType.."StoredCritMax"] = fakeMax
+						else
+							output[fakeAilment..damageType.."StoredHitMin"] = fakeMin
+							output[fakeAilment..damageType.."StoredHitMax"] = fakeMax
+						end
 					end
 
 					if (damageTypeHitMin ~= 0 or damageTypeHitMax ~= 0) and env.mode_effective then
@@ -4881,16 +4947,18 @@ function calcs.offence(env, actor, activeSkill)
 				if canDoAilment(ailment, damageType, defaultDamageTypes) then
 					local override = skillModList:Override(cfg, ailment .. damageType .. "HitDamage")
 					local more = skillModList:More(cfg, damageType .. ailment .. "Buildup")
-					local ailmentHitMin = override or output[damageType.."StoredHitMin"] or 0
-					local ailmentHitMax = override or output[damageType.."StoredHitMax"] or 0
+					-- fake-hit sources store per-ailment source damage (real hit + damage
+					-- keyword-flagged to this ailment); fall back to the plain hit damage
+					local ailmentHitMin = override or output[ailment..damageType.."StoredHitMin"] or output[damageType.."StoredHitMin"] or 0
+					local ailmentHitMax = override or output[ailment..damageType.."StoredHitMax"] or output[damageType.."StoredHitMax"] or 0
 					hitMin = hitMin + ailmentHitMin * more
 					hitMax = hitMax + ailmentHitMax * more
 					output[ailment .. damageType .. "Min"] = ailmentHitMin * more
 					output[ailment .. damageType .. "Max"] = ailmentHitMax * more
 					if canCrit then
 						override = skillModList:Override(cfg, ailment .. damageType .. "CritDamage")
-						critMin = critMin + (override or output[damageType.."StoredCritMin"] or 0) * more
-						critMax = critMax + (override or output[damageType.."StoredCritMax"] or 0) * more
+						critMin = critMin + (override or output[ailment..damageType.."StoredCritMin"] or output[damageType.."StoredCritMin"] or 0) * more
+						critMax = critMax + (override or output[ailment..damageType.."StoredCritMax"] or output[damageType.."StoredCritMax"] or 0) * more
 					end
 				end
 			end
