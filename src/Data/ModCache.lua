@@ -8747,7 +8747,7 @@ c["Minions have 4% increased Attack and Cast Speed"]={{[1]={flags=0,keywordFlags
 c["Minions have 4% increased Cooldown Recovery Rate per 10 Tribute"]={{[1]={flags=0,keywordFlags=0,name="MinionModifier",type="LIST",value={mod={[1]={actor="parent",div=10,stat="Tribute",type="PerStat"},flags=0,keywordFlags=0,name="CooldownRecovery",type="INC",value=4}}}},nil}
 c["Minions have 40% increased Critical Damage Bonus"]={{[1]={flags=0,keywordFlags=0,name="MinionModifier",type="LIST",value={mod={flags=0,keywordFlags=0,name="CritMultiplier",type="INC",value=40}}}},nil}
 c["Minions have 40% increased Critical Hit Chance"]={{[1]={flags=0,keywordFlags=0,name="MinionModifier",type="LIST",value={mod={flags=0,keywordFlags=0,name="CritChance",type="INC",value=40}}}},nil}
-c["Minions have 40% increased Magnitude of Damaging Ailments"]={{}," Magnitude of Damaging Ailments "}
+c["Minions have 40% increased Magnitude of Damaging Ailments"]={{[1]={flags=0,keywordFlags=0,name="MinionModifier",type="LIST",value={mod={flags=0,keywordFlags=14680064,name="AilmentMagnitude",type="INC",value=40}}}},nil}
 c["Minions have 40% increased maximum Life"]={{[1]={flags=0,keywordFlags=0,name="MinionModifier",type="LIST",value={mod={flags=0,keywordFlags=0,name="Life",type="INC",value=40}}}},nil}
 c["Minions have 46% increased maximum Life"]={{[1]={flags=0,keywordFlags=0,name="MinionModifier",type="LIST",value={mod={flags=0,keywordFlags=0,name="Life",type="INC",value=46}}}},nil}
 c["Minions have 5% increased Attack and Cast Speed"]={{[1]={flags=0,keywordFlags=0,name="MinionModifier",type="LIST",value={mod={flags=0,keywordFlags=0,name="Speed",type="INC",value=5}}}},nil}
@@ -10002,8 +10002,8 @@ c["Your speed is unaffected by Slows"]={{[1]={flags=0,keywordFlags=0,name="Unaff
 c["Your spells have 100% chance to Shock against Frozen Enemies"]={nil,"Your spells have 100% chance to Shock against Frozen Enemies "}
 c["Zealot's Oath"]={{[1]={flags=0,keywordFlags=0,name="Keystone",type="LIST",value="Zealot's Oath"}},nil}
 c["Zealot's Oath during Effect"]={{[1]={[1]={type="Condition",var="UsingFlask"},flags=0,keywordFlags=0,name="ZealotsOath",type="FLAG",value=true}},nil}
-end)();(function()
 c["additional Elemental Infusion of the same type"]={nil,"additional Elemental Infusion of the same type "}
+end)();(function()
 c["additional Rune-only sockets:"]={nil,"additional Rune-only sockets: "}
 c["additional Rune-only sockets: 1 Helmet socket"]={nil,"additional Rune-only sockets: 1 Helmet socket "}
 c["additional Rune-only sockets: 1 Helmet socket 2 Body Armour sockets"]={nil,"additional Rune-only sockets: 1 Helmet socket 2 Body Armour sockets "}
