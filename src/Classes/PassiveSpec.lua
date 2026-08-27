@@ -22,8 +22,11 @@ local legacyClassIdMap = {
 	["0_3"] = { [0] = 2, [1] = 8, [2] = 6, [3] = 9, [4] = 1, [5] = 7, [6] = 10 },
 }
 
-local PassiveSpecClass = newClass("PassiveSpec", "UndoHandler", function(self, build, treeVersion, convert)
-	self.UndoHandler()
+---@class PassiveSpec: UndoHandler
+local PassiveSpecClass = newClass("PassiveSpec", "UndoHandler")
+
+function PassiveSpecClass:PassiveSpec(build, treeVersion, convert)
+	self:UndoHandler()
 
 	self.build = build
 
@@ -31,7 +34,8 @@ local PassiveSpecClass = newClass("PassiveSpec", "UndoHandler", function(self, b
 	self:Init(treeVersion, convert)
 
 	self:SelectClass(self.tree.constants.classes.DexClass)
-end)
+	return self
+end
 
 function PassiveSpecClass:Init(treeVersion, convert)
 	self.treeVersion = treeVersion
@@ -97,6 +101,11 @@ function PassiveSpecClass:Init(treeVersion, convert)
 
 	-- Keys are node IDs, values are the replacement node
 	self.hashOverrides = { }
+
+	-- Author notes attached to allocated nodes (Shift+Right-Click on a node to
+	-- set one). Keyed by node id; emitted into the PoE2 .build export as the
+	-- node's additional_text.
+	self.nodeNotes = { }
 end
 
 function PassiveSpecClass:Load(xml, dbFileName)
@@ -142,6 +151,17 @@ function PassiveSpecClass:Load(xml, dbFileName)
 				local weaponSet = tonumber(node.elem:match("^WeaponSet(%d)"))
 				for nodeId in node.attrib.nodes:gmatch("%d+") do
 					weaponSets[tonumber(nodeId)] = weaponSet
+				end
+			elseif node.elem == "Notes" then
+				for _, child in ipairs(node) do
+					if child.elem == "Note" and child.attrib.nodeId then
+						local nid = tonumber(child.attrib.nodeId)
+						-- Note text lives in the element body (preserves newlines, no XML attribute escaping headaches).
+						local text = type(child[1]) == "string" and child[1] or child.attrib.text
+						if nid and text and text ~= "" then
+							self.nodeNotes[nid] = text
+						end
+					end
 				end
 			end
 		end
@@ -261,7 +281,7 @@ function PassiveSpecClass:Save(xml)
 		ascendancyInternalId = tostring(ascendancyInternalId),
 		secondaryAscendClassId = tostring(self.curSecondaryAscendClassId),
 		nodes = table.concat(allocNodeIdList, ","),
-		masteryEffects = table.concat(masterySelections, ",")
+		masteryEffects = table.concat(masterySelections, ","),
 	}
 	t_insert(xml, {
 		-- Legacy format
@@ -311,6 +331,17 @@ function PassiveSpecClass:Save(xml)
 	end
 	t_insert(xml, overrides)
 
+	-- Per-node author notes (Shift+Right-Click on a node). Stored as element
+	-- body text so multi-line notes survive without XML attribute escaping.
+	local notesElem = { elem = "Notes" }
+	local hasNotes = false
+	for nodeId, note in pairs(self.nodeNotes) do
+		if note and note ~= "" then
+			hasNotes = true
+			t_insert(notesElem, { elem = "Note", attrib = { nodeId = tostring(nodeId) }, [1] = note })
+		end
+	end
+	if hasNotes then t_insert(xml, notesElem) end
 end
 
 function PassiveSpecClass:PostLoad()
@@ -2002,7 +2033,7 @@ function PassiveSpecClass:ReplaceNode(old, newNode)
 	old.sd = newNode.sd
 	old.mods = newNode.mods
 	old.modKey = newNode.modKey
-	old.modList = new("ModList")
+	old.modList = new("ModList"):ModList()
 	old.modList:AddList(newNode.modList)
 	old.keystoneMod = newNode.keystoneMod
 	old.activeEffectImage = newNode.activeEffectImage
@@ -2538,6 +2569,7 @@ function PassiveSpecClass:CreateUndoState()
 		weaponSets = weaponSets,
 		hashOverrides = copyTable(self.hashOverrides, true),
 		masteryEffects = selections,
+		nodeNotes = copyTable(self.nodeNotes),
 		treeVersion = self.treeVersion
 	}
 end
@@ -2554,6 +2586,7 @@ function PassiveSpecClass:RestoreUndoState(state, treeVersion)
 		end
 	end
 	self:ImportFromNodeList(nil, classId, ascendClassId, state.secondaryAscendClassId, state.hashList, state.weaponSets, state.hashOverrides, state.masteryEffects, treeVersion or state.treeVersion)
+	self.nodeNotes = copyTable(state.nodeNotes or {})
 	self:SetWindowTitleWithBuildClass()
 end
 
@@ -2569,7 +2602,7 @@ function PassiveSpecClass:NodeAdditionOrReplacementFromString(node,sd,replacemen
 	local addition = {}
 	addition.sd = {sd}
 	addition.mods = { }
-	addition.modList = new("ModList")
+	addition.modList = new("ModList"):ModList()
 	addition.modKey = ""
 	local i = 1
 	while addition.sd[i] do
@@ -2640,7 +2673,7 @@ function PassiveSpecClass:NodeAdditionOrReplacementFromString(node,sd,replacemen
 		node.mods = tableConcat(node.mods, addition.mods)
 		node.modKey = node.modKey .. addition.modKey
 	end
-	local modList = new("ModList")
+	local modList = new("ModList"):ModList()
 	modList:AddList(addition.modList)
 	if not replacement then
 		modList:AddList(node.modList)

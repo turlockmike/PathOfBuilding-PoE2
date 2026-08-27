@@ -4,8 +4,7 @@
 -- Active Intelligence skill gems
 -- Skill data (c) Grinding Gear Games
 --
-local skills, mod, flag, skill = ...
-
+			return function(skills, mod, flag, skill)
 skills["ArcPlayer"] = {
 	name = "Arc",
 	baseTypeName = "Arc",
@@ -23390,4 +23389,4 @@ skills["WitheringPresencePlayer"] = {
 			},
 		},
 	}
-}
+}			end

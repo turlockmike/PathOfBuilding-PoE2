@@ -4,8 +4,7 @@
 -- Minion active skills
 -- Skill data (c) Grinding Gear Games
 --
-local skills, mod, flag, skill = ...
-
+			return function(skills, mod, flag, skill)
 skills["MeleeAtAnimationSpeed"] = {
 	name = "Basic Attack",
 	hidden = true,
@@ -2971,4 +2970,4 @@ skills["GSWardboundMinionBlast"] = {
 			},
 		},
 	}
-}
+}			end
