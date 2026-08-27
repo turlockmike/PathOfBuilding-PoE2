@@ -4,7 +4,7 @@
 -- Strength support gems
 -- Skill data (c) Grinding Gear Games
 --
-local skills, mod, flag, skill = ...
+			return function(skills, mod, flag, skill)
 skills["SupportAftershockChancePlayer"] = {
 	name = "Aftershock I",
 	description = "Supports Slams you use yourself, giving them a chance to create an Aftershock.",
@@ -393,6 +393,8 @@ skills["ArmourExplosionPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 	},
@@ -761,6 +763,8 @@ skills["TriggeredBattershoutExplosionPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 	},
@@ -1052,6 +1056,8 @@ skills["TriggeredBrambleslamPlayer"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Physical] = true, [SkillType.Attack] = true, [SkillType.NoAttackOrCastTime] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.Hazard] = true, [SkillType.AttackInPlace] = true, [SkillType.Cooldown] = true, [SkillType.Plant] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 0.15, levelRequirement = 0, storedUses = 6, cost = { Mana = 0, }, },
@@ -1745,6 +1751,8 @@ skills["TriggeredCorruptingCryPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -1904,6 +1912,8 @@ skills["TriggeredCorruptingCryTwoPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -2060,6 +2070,8 @@ skills["TriggeredCraterPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 	},
@@ -2208,6 +2220,8 @@ skills["TriggeredDeadlyResolvePlayer"] = {
 	skillTypes = { [SkillType.Triggered] = true, [SkillType.Area] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Triggerable] = true, [SkillType.Damage] = true, [SkillType.Physical] = true, [SkillType.Attack] = true, [SkillType.AttackInPlace] = true, [SkillType.UseGlobalStats] = true, [SkillType.NonWeaponAttack] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { baseMultiplier = 0.9, critChance = 5, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -3334,6 +3348,8 @@ skills["TriggeredFanTheFlamesPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { baseMultiplier = 0.45, cooldown = 0.5, critChance = 7, levelRequirement = 0, storedUses = 5, cost = { Mana = 0, }, },
 		[2] = { baseMultiplier = 0.49, cooldown = 0.5, critChance = 7, levelRequirement = 0, storedUses = 5, cost = { Mana = 0, }, },
@@ -3480,6 +3496,8 @@ skills["TriggeredFanTheFlamesPlayerTwo"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Fire] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.AttackInPlace] = true, [SkillType.Attack] = true, [SkillType.UseGlobalStats] = true, [SkillType.Cooldown] = true, [SkillType.NonWeaponAttack] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { baseMultiplier = 0.45, cooldown = 0.5, critChance = 7, levelRequirement = 0, storedUses = 5, cost = { Mana = 0, }, },
@@ -3858,6 +3876,8 @@ skills["TriggeredFlamePillarPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 	},
@@ -4065,6 +4085,8 @@ skills["TriggeredHaemocrystalsPlayer"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Physical] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -4612,9 +4634,8 @@ skills["SupportInfernalLegionPlayer"] = {
 					mod("MinionModifier", "LIST", { mod = mod("FireDegen", "BASE", nil, 0, 0, { type = "PerStat", stat = "Life" }, { type = "GlobalEffect", effectType = "Buff" }) }),
 					div = 6000,
 				},
-				["support_minion_instability_minion_base_fire_area_damage_per_minute"] = {
-					mod("MinionModifier", "LIST", { mod = mod("Multiplier:InfernalLegionBaseDamage", "BASE", nil, 0, 0, { type = "PercentStat", stat = "Life", percent = 1 }) }),
-					div = 60,
+				["support_minions_ignite_for_%_max_life"] = {
+					mod("MinionModifier", "LIST", { mod = mod("Multiplier:InfernalLegionBaseDamage", "BASE", nil) }),
 					mod("ExtraMinionSkill", "LIST", { skillId = "InfernalLegion" }),
 				},
 			},
@@ -4655,9 +4676,8 @@ skills["SupportInfernalLegionPlayerTwo"] = {
 					mod("MinionModifier", "LIST", { mod = mod("FireDegen", "BASE", nil, 0, 0, { type = "PerStat", stat = "Life" }, { type = "GlobalEffect", effectType = "Buff" }) }),
 					div = 6000,
 				},
-				["support_minion_instability_minion_base_fire_area_damage_per_minute"] = {
-					mod("MinionModifier", "LIST", { mod = mod("Multiplier:InfernalLegionBaseDamage", "BASE", nil, 0, 0, { type = "PercentStat", stat = "Life", percent = 1 }) }),
-					div = 60,
+				["support_minions_ignite_for_%_max_life"] = {
+					mod("MinionModifier", "LIST", { mod = mod("Multiplier:InfernalLegionBaseDamage", "BASE", nil) }),
 					mod("ExtraMinionSkill", "LIST", { skillId = "InfernalLegion" }),
 				},
 			},
@@ -4700,9 +4720,8 @@ skills["SupportInfernalLegionPlayerThree"] = {
 					mod("MinionModifier", "LIST", { mod = mod("FireDegen", "BASE", nil, 0, 0, { type = "PerStat", stat = "Life" }, { type = "GlobalEffect", effectType = "Buff" }) }),
 					div = 6000,
 				},
-				["support_minion_instability_minion_base_fire_area_damage_per_minute"] = {
-					mod("MinionModifier", "LIST", { mod = mod("Multiplier:InfernalLegionBaseDamage", "BASE", nil, 0, 0, { type = "PercentStat", stat = "Life", percent = 1 }) }),
-					div = 60,
+				["support_minions_ignite_for_%_max_life"] = {
+					mod("MinionModifier", "LIST", { mod = mod("Multiplier:InfernalLegionBaseDamage", "BASE", nil) }),
 					mod("ExtraMinionSkill", "LIST", { skillId = "InfernalLegion" }),
 				},
 			},
@@ -5369,6 +5388,8 @@ skills["TriggeredCorruptingCryThreePlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -5692,6 +5713,8 @@ skills["TriggeredQuillburstPlayer"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Physical] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.AttackInPlace] = true, [SkillType.Cooldown] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 0.15, levelRequirement = 0, storedUses = 1, cost = { Mana = 0, }, },
@@ -6713,6 +6736,8 @@ skills["TriggeredSkitteringStonePlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 	},
@@ -6786,6 +6811,8 @@ skills["TriggeredSkitteringStonePlayerTwo"] = {
 	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Area] = true, [SkillType.Physical] = true, [SkillType.MeleeSingleTarget] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -7085,6 +7112,8 @@ skills["StompingGroundShockwavePlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 	},
@@ -7309,6 +7338,8 @@ skills["TriggeredSplinterExplosionHardyTotems"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.Physical] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { critChance = 5, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -8060,6 +8091,8 @@ skills["TriggeredVolcanicEruptionPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { cooldown = 0.4, levelRequirement = 0, storedUses = 1, cost = { Mana = 0, }, },
 	},
@@ -8203,4 +8236,4 @@ skills["SupportZerphisLegacyPlayer"] = {
 			},
 		},
 	}
-}
+}			end

@@ -53,7 +53,7 @@ function itemLib.formatValue(value, baseValueScalar, valueScalar, precision, dis
 	elseif displayPrecision then
 		return tostring(value, displayPrecision)
 	else
-		return tostring(roundSymmetric(value,  precision and m_min(2, m_floor(math.log(precision, 10) + 0.001)) or 2)) -- max decimals ingame is 2 
+		return tostring(roundSymmetric(value,  precision and m_min(2, m_floor(math.log(precision, 10) + 0.001)) or 2)) -- max decimals ingame is 2
 	end
 end
 
@@ -74,6 +74,10 @@ function itemLib.isZeroValueLine(line)
 end
 
 -- Apply range value (0 to 1) to a modifier that has a range: "(x-x)" or "(x-x) to (x-x)"
+---@param line string
+---@param range number
+---@param valueScalar number?
+---@param baseValueScalar number?
 function itemLib.applyRange(line, range, valueScalar, baseValueScalar)
 	-- stripLines down to # in place of any number and store numbers inside values also remove all + signs are kept if value is positive
 	local values = { }
@@ -117,7 +121,7 @@ function itemLib.applyRange(line, range, valueScalar, baseValueScalar)
 					modifiedLine = replaceNthInstance(modifiedLine, "#", values[i], i - substituted)
 					substituted = substituted + 1
 				end
-	
+
 				-- Check if the modified line matches any scalability data
 				local key = modifiedLine:gsub("+#", "#")
 				if data.modScalability[key] then
@@ -325,21 +329,21 @@ function itemLib.applyRange(line, range, valueScalar, baseValueScalar)
 	end
 end
 
-function itemLib.formatModLine(modLine, dbMode)
+function itemLib.formatModLine(modLine, dbMode, skipUnsupported)
 	local valueScalar = modLine.displayValueScalar and (modLine.valueScalar or 1) * modLine.displayValueScalar or modLine.valueScalar
 	local line = (not dbMode and (modLine.range or modLine.displayValueScalar) and itemLib.applyRange(modLine.line, modLine.range or main.defaultItemAffixQuality, valueScalar, modLine.corruptedRange)) or modLine.line
 	if itemLib.isZeroValueLine(line) then -- Hack to hide 0-value modifiers
 		return
 	end
 	local colorCode
-	if modLine.extra then
+	if modLine.extra and not skipUnsupported then
 		colorCode = colorCodes.UNSUPPORTED
 		line = main.notSupportedModTooltips and (line .. main.notSupportedTooltipText) or line
 		if launch.devModeAlt then
 			line = line .. "   ^1'" .. modLine.extra .. "'"
 		end
 	else
-		colorCode = (modLine.crafted and colorCodes.CRAFTED) or (modLine.enchant and colorCodes.ENCHANTED) or (modLine.fractured and colorCodes.FRACTURED) or (modLine.mutated and colorCodes.MUTATED) or (modLine.custom and (not modLine.desecrated and colorCodes.CUSTOM)) or colorCodes.MAGIC
+		colorCode = (modLine.fractured and colorCodes.FRACTURED) or (modLine.crafted and colorCodes.CRAFTED) or (modLine.enchant and colorCodes.ENCHANTED) or (modLine.mutated and colorCodes.MUTATED) or (modLine.custom and (not modLine.desecrated and colorCodes.CUSTOM)) or colorCodes.MAGIC
 	end
 	return colorCode..line
 end

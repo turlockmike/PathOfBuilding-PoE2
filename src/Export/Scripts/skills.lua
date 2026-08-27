@@ -121,6 +121,15 @@ directiveTable.addSkillTypes = function(state, args, out)
 	end
 end
 
+-- #requireSkillTypes <flag>[ <flag>[...]]
+-- extra skill types appended to a support's requireSkillTypes (the rest come from game data)
+directiveTable.requireSkillTypes = function(state, args, out)
+	state.requireSkillTypes = {}
+	for flag in args:gmatch("%a+") do
+		table.insert(state.requireSkillTypes, flag)
+	end
+end
+
 -- #skill <GrantedEffectId> [<Display name>]
 -- Initialises the skill data and emits the skill header
 directiveTable.skill = function(state, args, out)
@@ -220,12 +229,19 @@ directiveTable.skill = function(state, args, out)
 	skill.setIndex = 1
 	skill.addSkillTypes = state.addSkillTypes
 	state.addSkillTypes = nil
+	skill.requireSkillTypes = state.requireSkillTypes
+	state.requireSkillTypes = nil
 	if skillGem and not state.noGem then
 		out:write('\tcolor = ', gemColor, ',\n')
 	end
 	local nextGemLevelReqValue = 0
 	local perLevel = dat("GrantedEffectsPerLevel"):GetRowList("GrantedEffect", granted)
 	local statsPerLevel = dat("GrantedEffectStatSetsPerLevel"):GetRowList("GrantedEffect", granted)
+	-- Use primary stat set rows if both stat sets contain the same number of levels
+	local primaryStatsPerLevel = dat("GrantedEffectStatSetsPerLevel"):GetRowList("GrantedEffectStatSets", dat("GrantedEffectStatSets"):GetRow("Id", granted.Id))
+	if primaryStatsPerLevel and #primaryStatsPerLevel >= gemLevels then
+		statsPerLevel = primaryStatsPerLevel
+	end
 	local gemLevelProgression = nil
 	if skillGem and not state.noGem then
 		gemLevelProgression = dat("ItemExperiencePerLevel"):GetRowList("ItemExperienceType", skillGem.GemLevelProgression)
@@ -303,10 +319,15 @@ directiveTable.skill = function(state, args, out)
 	end
 	if not (skillGem and granted.IsSupport) then
 		skill.qualityStats = { }
+		skill.altQualityStats = { }
 		local qualityStats = dat("GrantedEffectQualityStats"):GetRow("GrantedEffect", granted)
 		if qualityStats and qualityStats.GrantedStats then
 			for i, stat in ipairs(qualityStats.GrantedStats) do
-				table.insert(skill.qualityStats, { stat.Id, qualityStats.StatValues[i] / 1000 })
+				table.insert(skill.qualityStats, { stat.Id, qualityStats.StatValues[i] / 1000, qualityStats.StatSetIndex })
+				--ConPrintf("[%d] %s %s", i, granted.ActiveSkill.DisplayName, stat.Id)
+			end
+			for i, stat in ipairs(qualityStats.AltStats) do
+				table.insert(skill.altQualityStats, { stat.Id, qualityStats.AltStatValues[i] / 1000, qualityStats.AltStatSetIndex })
 				--ConPrintf("[%d] %s %s", i, granted.ActiveSkill.DisplayName, stat.Id)
 			end
 		end
@@ -317,6 +338,11 @@ directiveTable.skill = function(state, args, out)
 		out:write('\trequireSkillTypes = { ')
 		for _, type in ipairs(granted.SupportTypes) do
 			out:write(mapAST(type), ', ')
+		end
+		if skill.requireSkillTypes then
+			for _, flag in ipairs(skill.requireSkillTypes) do
+				out:write('SkillType.', flag, ', ')
+			end
 		end
 		out:write('},\n')
 		out:write('\taddSkillTypes = { ')
@@ -427,7 +453,14 @@ directiveTable.skill = function(state, args, out)
 	if skill.qualityStats then
 		out:write('\tqualityStats = {\n')
 		for _, stat in ipairs(skill.qualityStats) do
-			out:write('\t\t{ "', stat[1], '", ', stat[2], ' },\n')
+			out:write('\t\t{ "', stat[1], '", ', stat[2], ', { ', table.concat(stat[3], ", "), ' } },\n')
+		end
+		out:write('\t},\n')
+	end
+	if skill.altQualityStats then
+		out:write('\taltQualityStats = {\n')
+		for _, stat in ipairs(skill.altQualityStats) do
+			out:write('\t\t{ "', stat[1], '", ', stat[2], ', { ', table.concat(stat[3], ", "), ' } },\n')
 		end
 		out:write('\t},\n')
 	end

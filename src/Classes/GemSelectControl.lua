@@ -15,9 +15,12 @@ local gemTooltip = LoadModule("Classes/GemTooltip")
 
 local toolTipText = "Prefix tag searches with a colon and exclude tags with a dash. e.g. :fire:lightning:-cold:area"
 
-local GemSelectClass = newClass("GemSelectControl", "EditControl", function(self, anchor, rect, skillsTab, index, changeFunc, forceTooltip)
-	self.EditControl(anchor, rect, nil, nil, "^ %a':-")
-	self.controls.scrollBar = new("ScrollBarControl", { "TOPRIGHT", self, "TOPRIGHT" }, {-1, 0, 18, 0}, (self.height - 4) * 4)
+---@class GemSelectControl: EditControl
+local GemSelectClass = newClass("GemSelectControl", "EditControl")
+
+function GemSelectClass:GemSelectControl(anchor, rect, skillsTab, index, changeFunc, forceTooltip)
+	self:EditControl(anchor, rect, nil, nil, "^ %a':-")
+	self.controls.scrollBar = new("ScrollBarControl"):ScrollBarControl({ "TOPRIGHT", self, "TOPRIGHT" }, { -1, 0, 18, 0 }, (self.height - 4) * 4)
 	self.controls.scrollBar.y = function()
 		local width, height = self:GetSize()
 		return height + 1
@@ -45,9 +48,10 @@ local GemSelectClass = newClass("GemSelectControl", "EditControl", function(self
 		self:BuildList(self.buf)
 		self:UpdateGem()
 	end
-end)
+	return self
+end
 
-function GemSelectClass:CalcOutputWithThisGem(calcFunc, gemData, useFullDPS)
+function GemSelectClass:CalcOutputWithThisGem(calcFunc, gemData, useFullDPS, fastCalcOptions)
 	local gemList = self.skillsTab.displayGroup.gemList
 	local displayGemList = self.skillsTab.displayGroup.displayGemList
 	local oldGem
@@ -75,7 +79,7 @@ function GemSelectClass:CalcOutputWithThisGem(calcFunc, gemData, useFullDPS)
 	gemInstance.gemData = gemData
 	gemInstance.displayEffect = nil
 	-- Calculate the impact of using this gem
-	local output = calcFunc(nil, useFullDPS)
+	local output = calcFunc(nil, useFullDPS, fastCalcOptions)
 	-- Put the original gem back into the list
 	if oldGem then
 		gemInstance.gemData = oldGem.gemData
@@ -309,6 +313,10 @@ function GemSelectClass:UpdateSortCache()
 
 	local dpsField = self.skillsTab.sortGemsByDPSField
 	local useFullDPS = dpsField == "FullDPS"
+	-- Between iterations of the sort loop only the gem in this slot changes, so tree
+	-- allocations and item/gem requirements can be carried over between calcs; EHP
+	-- estimation is only needed when sorting by it
+	local fastCalcOptions = { nodeAlloc = true, requirementsItems = true, requirementsGems = true, skipEHP = dpsField ~= "TotalEHP", fullDPSOnly = useFullDPS }
 	local calcFunc, calcBase = self.skillsTab.build.calcsTab:GetMiscCalculator(self.build)
 	-- Check for nil because some fields may not be populated, default to 0
 	local baseDPS = (dpsField == "FullDPS" and calcBase[dpsField] ~= nil and calcBase[dpsField]) or (calcBase.Minion and calcBase.Minion.CombinedDPS) or (calcBase[dpsField] ~= nil and calcBase[dpsField]) or 0
@@ -317,7 +325,7 @@ function GemSelectClass:UpdateSortCache()
 		sortCache.dps[gemId] = baseDPS
 		-- Ignore gems that don't support the active skill
 		if sortCache.canSupport[gemId] or (gemData.grantedEffect.hasGlobalEffect and not gemData.grantedEffect.support) then
-			local output = self:CalcOutputWithThisGem(calcFunc, gemData, useFullDPS, fastCalcOptions, calcBase)
+			local output = self:CalcOutputWithThisGem(calcFunc, gemData, useFullDPS, fastCalcOptions)
 			-- Check for nil because some fields may not be populated, default to 0
 			sortCache.dps[gemId] = (dpsField == "FullDPS" and output[dpsField] ~= nil and output[dpsField]) or (output.Minion and output.Minion.CombinedDPS) or (output[dpsField] ~= nil and output[dpsField]) or 0
 		end
@@ -462,28 +470,33 @@ function GemSelectClass:Draw(viewPort, noTooltip)
 		if self.hoverSel then
 			local calcFunc, calcBase = self.skillsTab.build.calcsTab:GetMiscCalculator(self.build)
 			if calcFunc then
-				self.tooltip:Clear()
 				self.tooltip.maxWidth = 500
 				local gemData = self.gems[self.list[self.hoverSel]]
-				local output = self:CalcOutputWithThisGem(calcFunc, gemData, self.skillsTab.sortGemsByDPSField == "FullDPS", nil, calcBase)
-				local gemInstance = {
-						level = self.skillsTab:ProcessGemLevel(gemData),
-						quality = self.skillsTab.defaultGemQuality or 0,
-						count = 1,
-						enabled = true,
-						enableGlobal1 = true,
-						enableGlobal2 = true,
-						gemId = gemData.id,
-						nameSpec = gemData.name,
-						skillId = gemData.grantedEffectId,
-						displayEffect = nil,
-						gemData = gemData,
-						corruptLevel = self.skillsTab.defaultCorruptionLevel,
-						corrupted = self.skillsTab.defaultCorruptionState == true,
-					}
-				self:AddGemTooltip(gemInstance)
-				self.tooltip:AddSeparator(10)
-				self.skillsTab.build:AddStatComparesToTooltip(self.tooltip, calcBase, output, "^7Selecting this gem will give you:")
+				-- Rebuilding this tooltip runs a full build calculation, so only rebuild when the hovered gem or the underlying build changes
+				if self.tooltip:CheckForUpdate(gemData, self.skillsTab.build.outputRevision, self.skillsTab.displayGroup, self.skillsTab.sortGemsByDPSField,
+						self.skillsTab.defaultGemLevel, self.skillsTab.defaultGemQuality, self.skillsTab.defaultCorruptionLevel, self.skillsTab.defaultCorruptionState) then
+					self.tooltip.maxWidth = 500
+					-- No fastCalcOptions here: the tooltip's stat compare shows defensive stats too, so it needs the full (unaccelerated) calc
+					local output = self:CalcOutputWithThisGem(calcFunc, gemData, self.skillsTab.sortGemsByDPSField == "FullDPS")
+					local gemInstance = {
+							level = self.skillsTab:ProcessGemLevel(gemData),
+							quality = self.skillsTab.defaultGemQuality or 0,
+							count = 1,
+							enabled = true,
+							enableGlobal1 = true,
+							enableGlobal2 = true,
+							gemId = gemData.id,
+							nameSpec = gemData.name,
+							skillId = gemData.grantedEffectId,
+							displayEffect = nil,
+							gemData = gemData,
+							corruptLevel = self.skillsTab.defaultCorruptionLevel,
+							corrupted = self.skillsTab.defaultCorruptionState == true,
+						}
+					self:AddGemTooltip(gemInstance)
+					self.tooltip:AddSeparator(10)
+					self.skillsTab.build:AddStatComparesToTooltip(self.tooltip, calcBase, output, "^7Selecting this gem will give you:")
+				end
 				self.tooltip:Draw(x, y + height + 2 + (self.hoverSel - 1) * (height - 4) - scrollBar.offset, width, height - 4, viewPort)
 			end
 		end
@@ -508,10 +521,11 @@ function GemSelectClass:Draw(viewPort, noTooltip)
 		if mOver and (not self.skillsTab.selControl or self.skillsTab.selControl._className ~= "GemSelectControl" or not self.skillsTab.selControl.dropped) and (not noTooltip or self.forceTooltip) then
 			local gemInstance = self.skillsTab.displayGroup.gemList[self.index]
 			local cursorX, cursorY = GetCursorPos()
-			self.tooltip:Clear()
+			-- Clear the update params too, so the dropdown hover tooltip above knows to rebuild
+			self.tooltip:Clear(true)
 			self.tooltip.maxWidth = 600
 			if gemInstance and gemInstance.gemData then
-				self:AddGemTooltip(gemInstance)
+				self:AddGemTooltip(gemInstance, true)
 			else
 				self.tooltip:AddLine(16, toolTipText)
 			end
@@ -558,8 +572,8 @@ function GemSelectClass:CheckSupporting(gemA, gemB)
 		(gemA.gemData.secondaryGrantedEffect and gemA.gemData.secondaryGrantedEffect.support and not gemB.gemData.grantedEffect.support and gemA.supportEffect and gemA.supportEffect.isSupporting and gemA.supportEffect.isSupporting[gemB])
 end
 
-function GemSelectClass:AddGemTooltip(gemInstance)
-	gemTooltip.AddGemTooltip(self.tooltip, self.skillsTab.build, gemInstance)
+function GemSelectClass:AddGemTooltip(gemInstance, includeBuildPlannerNote)
+	gemTooltip.AddGemTooltip(self.tooltip, self.skillsTab.build, gemInstance, { includeBuildPlannerNote = includeBuildPlannerNote })
 end
 function GemSelectClass:OnFocusGained()
 	self.EditControl:OnFocusGained()
@@ -669,6 +683,18 @@ function GemSelectClass:OnKeyDown(key, doubleClick)
 				self:ScrollSelIntoView()
 			end
 		end
+	elseif key == "RIGHTBUTTON" and IsKeyDown("SHIFT") then
+		-- Shift+Right-Click: edit the per-gem author note for the PoE2 .build export.
+		local gemList = self.skillsTab.displayGroup and self.skillsTab.displayGroup.gemList
+		local gemInstance = gemList and gemList[self.index]
+		if gemInstance then
+			local title = "Note: " .. ((gemInstance.nameSpec and gemInstance.nameSpec ~= "") and gemInstance.nameSpec or "Gem")
+			main:OpenNoteEditPopup(title, gemInstance.note, function(text)
+				gemInstance.note = text
+				self.skillsTab.build.modFlag = true
+			end)
+		end
+		return
 	elseif key == "RETURN" or key == "RIGHTBUTTON" then
 		self.dropped = true
 		self:UpdateSortCache()

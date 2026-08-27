@@ -3,7 +3,8 @@
 -- Module: Calc Offence
 -- Performs offence calculations.
 --
-local calcs = ...
+---@class Calcs
+local calcs = require("Modules.CalcBase")
 
 local pairs = pairs
 local ipairs = ipairs
@@ -1129,6 +1130,11 @@ function calcs.offence(env, actor, activeSkill)
 	if activeSkill.skillTypes[SkillType.Grenade] then
 		local detonateTwice = m_min(skillModList:Sum("BASE", skillCfg, "GrenadeActivateTwice"), 100)
 		modDB:NewMod("DPS", "MORE", detonateTwice, "Grenade Activate Twice")
+	end
+
+	-- Dual wield DPS multiplier
+	if skillFlags.bothWeaponAttack and skillData.doubleHitsWhenDualWielding then
+		skillModList:NewMod("DPS", "MORE", 100, "Hits with both weapons")
 	end
 
 	if skillModList:Flag(nil, "HasSeals") and not skillModList:Flag(nil, "NoRepeatBonuses") then
@@ -2379,7 +2385,7 @@ function calcs.offence(env, actor, activeSkill)
 		local critOverride = skillModList:Override(skillCfg, "WeaponBaseCritChance")
 		if skillFlags.weapon1Attack then
 			if breakdown then
-				breakdown.MainHand = LoadModule(calcs.breakdownModule, skillModList, output.MainHand)
+				breakdown.MainHand = LoadModule(calcs.breakdownModule)(skillModList, output.MainHand)
 			end
 			activeSkill.weapon1Cfg.skillStats = output.MainHand
 			local source = copyTable(actor.weaponData1)
@@ -2409,7 +2415,7 @@ function calcs.offence(env, actor, activeSkill)
 		end
 		if skillFlags.weapon2Attack then
 			if breakdown then
-				breakdown.OffHand = LoadModule(calcs.breakdownModule, skillModList, output.OffHand)
+				breakdown.OffHand = LoadModule(calcs.breakdownModule)(skillModList, output.OffHand)
 			end
 			activeSkill.weapon2Cfg.skillStats = output.OffHand
 			local source = copyTable(actor.weaponData2)
@@ -2465,7 +2471,7 @@ function calcs.offence(env, actor, activeSkill)
 		elseif mode == "AVERAGE" then
 			output[stat] = ((output.MainHand[stat] or 0) + (output.OffHand[stat] or 0)) / 2
 		elseif mode == "CRIT" then
-			if skillFlags.bothWeaponAttack and skillData.doubleHitsWhenDualWielding then
+			if skillFlags.bothWeaponAttack and skillData.combinesHitsWhenDualWielding then
 				output[stat] = (output.MainHand[stat] or 0) + (output.OffHand[stat] or 0) - ((output.MainHand[stat] or 0) * (output.OffHand[stat] or 0) / 100)
 			else
 				output[stat] = ((output.MainHand[stat] or 0) + (output.OffHand[stat] or 0)) / 2
@@ -2539,7 +2545,7 @@ function calcs.offence(env, actor, activeSkill)
 			end
 		elseif mode == "DPS" then
 			output[stat] = (output.MainHand[stat] or 0) + (output.OffHand[stat] or 0)
-			if not skillData.doubleHitsWhenDualWielding then
+			if not skillData.combinesHitsWhenDualWielding then
 				output[stat] = output[stat] / 2
 			end
 		end
@@ -2738,7 +2744,7 @@ function calcs.offence(env, actor, activeSkill)
 					baseTime = 1 / ( source.AttackRate or 1 ) + skillModList:Sum("BASE", cfg, "Speed")
 				end
 			else
-				baseTime = skillData.castTimeOverride or activeSkill.activeEffect.grantedEffect.castTime or 1
+				baseTime = (skillData.castTimeOverride or activeSkill.activeEffect.grantedEffect.castTime or 1) + skillModList:Sum("BASE", cfg, "Speed")
 			end
 			local more = skillModList:More(cfg, "Speed")
 			output.Repeats = globalOutput.Repeats or 1
@@ -3054,11 +3060,26 @@ function calcs.offence(env, actor, activeSkill)
 			end
 		elseif skillFlags.bothWeaponAttack then
 			if breakdown then
-				breakdown.Speed = {
-					"Both weapons:",
-					s_format("2 / (1 / %.2f + 1 / %.2f)", output.MainHand.Speed, output.OffHand.Speed),
-					s_format("= %.2f", output.Speed),
-				}
+				if skillData.combinesHitsWhenDualWielding then
+					breakdown.Speed = {
+						"Combined hit from both weapons:",
+						s_format("1 / (1 / %.2f + 1 / %.2f)", output.MainHand.Speed, output.OffHand.Speed),
+						s_format("= %.2f", output.Speed),
+					}
+				elseif skillData.doubleHitsWhenDualWielding then
+					breakdown.Speed = {
+						"Simultaneous hits from each weapon:",
+						s_format("2 / (1 / %.2f + 1 / %.2f)", output.MainHand.Speed, output.OffHand.Speed),
+						s_format("%.2f ^8(hits twice per attack)", output.Speed),
+						s_format("= %.2f", output.Speed),
+					}
+				else
+					breakdown.Speed = {
+						"Alternating both weapons:",
+						s_format("2 / (1 / %.2f + 1 / %.2f)", output.MainHand.Speed, output.OffHand.Speed),
+						s_format("= %.2f", output.Speed),
+					}
+				end
 			end
 		end
 		if skillData.channelTimeMultiplier then
@@ -3069,6 +3090,20 @@ function calcs.offence(env, actor, activeSkill)
 			end
 			output.ChannelTime = m_max(skillData.channelTimeMultiplier / channelTime, minTime)
 			output.ChannelSpeed = output.Speed or output.Time
+		end
+		if breakdown then
+			if skillFlags.bothWeaponAttack then
+				breakdown.HitChance = {
+					"Both weapons:",
+					s_format("%.2f%% ^8(main hand)", output.MainHand.HitChance),
+					s_format("%.2f%% ^8(off hand)", output.OffHand.HitChance),
+					s_format("= %.2f%% ^8(average)", output.HitChance),
+				}
+			else
+				local handBreakdown = skillFlags.weapon1Attack and breakdown.MainHand or breakdown.OffHand
+				breakdown.HitChance = handBreakdown.HitChance or handBreakdown.AccuracyHitChance
+				breakdown.Speed = breakdown.Speed or handBreakdown.Speed
+			end
 		end
 		if skillData.hitTimeOverride and not skillData.triggeredOnDeath then
 			output.HitTime = skillData.hitTimeOverride
@@ -3182,7 +3217,7 @@ function calcs.offence(env, actor, activeSkill)
 
 		if env.mode_buffs then
 			-- Iterative over all the active skills to account for exerted attacks provided by warcries
-			if not activeSkill.skillTypes[SkillType.NeverExertable] and not activeSkill.skillTypes[SkillType.Triggered] and not activeSkill.skillTypes[SkillType.Channel] and not activeSkill.skillTypes[SkillType.OtherThingUsesSkill] and not activeSkill.skillTypes[SkillType.Retaliation] then
+			if not activeSkill.skillTypes[SkillType.NeverExertable] and not activeSkill.skillTypes[SkillType.Triggered] and not activeSkill.skillTypes[SkillType.OtherThingUsesSkill] and not activeSkill.skillTypes[SkillType.Retaliation] then
 				for index, value in ipairs(actor.activeSkillList) do
 					if value.activeEffect.grantedEffect.name == "Ancestral Cry" and activeSkill.skillTypes[SkillType.MeleeSingleTarget] and not globalOutput.AncestralCryCalculated then
 						globalOutput.AncestralCryDuration = calcSkillDuration(value.skillModList, value.skillCfg, value.skillData, env, enemyDB)
@@ -3762,9 +3797,10 @@ function calcs.offence(env, actor, activeSkill)
 						local overCap = preCapCritChance - 100
 						t_insert(breakdown.CritChance, s_format("Crit is overcapped by %.2f%% (%d%% increased Critical Hit Chance)", overCap, overCap / more / (baseCrit + base) * 100))
 					end
+					breakdown.PreEffectiveCritChance = copyTable(breakdown.CritChance)
 					if env.mode_effective and output.AccuracyHitChance < 100 then
 						t_insert(breakdown.CritChance, "")
-						t_insert(breakdown.CritChance, "Effective Crit Chance:")
+						t_insert(breakdown.CritChance, "Crit confirmation roll:")
 						t_insert(breakdown.CritChance, s_format("%.2f%%", preHitCheckCritChance))
 						t_insert(breakdown.CritChance, s_format("x %.2f ^8(chance to hit)", output.AccuracyHitChance / 100))
 						t_insert(breakdown.CritChance, s_format("= %.2f%%", preLuckyCritChance))
@@ -3872,9 +3908,11 @@ function calcs.offence(env, actor, activeSkill)
 		output.DoubleDamageEffect = output.DoubleDamageChance / 100
 		output.ScaledDamageEffect = output.ScaledDamageEffect * (1 + output.DoubleDamageEffect + output.TripleDamageEffect)
 		
-		skillData.dpsMultiplier = ( skillData.dpsMultiplier or 1 ) * calcLib.mod(skillModList, skillCfg, "DPS")
 
-		local hitRate = output.HitChance / 100 * (globalOutput.HitSpeed or globalOutput.Speed) * skillData.dpsMultiplier
+
+		output.DpsMultiplier = ( skillData.dpsMultiplier or 1 ) * calcLib.mod(skillModList, skillCfg, "DPS")
+
+		local hitRate = output.HitChance / 100 * (globalOutput.HitSpeed or globalOutput.Speed) * output.DpsMultiplier
 
 		local enemyRarity = (enemyDB:Flag(nil, "Condition:Unique") and "Unique" or (enemyDB:Flag(nil, "Condition:RareOrUnique") and "Rare" or "Normal"))
 		-- Calculate culling DPS
@@ -4422,7 +4460,7 @@ function calcs.offence(env, actor, activeSkill)
 		local repeatPenalty = skillModList:Flag(nil, "HasSeals") and skillModList:Flag(nil, "DamageSeal") and not skillModList:Flag(nil, "NoRepeatBonuses") and calcLib.mod(skillModList, skillCfg, "SealRepeatPenalty") or 1
 		globalOutput.AverageBurstDamage = output.AverageDamage + output.AverageDamage * (globalOutput.AverageBurstHits - 1) * repeatPenalty or 0
 		globalOutput.ShowBurst = globalOutput.AverageBurstHits > 1
-		output.TotalDPS = output.AverageDamage * (globalOutput.HitSpeed or globalOutput.Speed) * skillData.dpsMultiplier * quantityMultiplier
+		output.TotalDPS = output.AverageDamage * (globalOutput.HitSpeed or globalOutput.Speed) * output.DpsMultiplier * quantityMultiplier
 		if breakdown then
 			if output.CritEffect ~= 1 then
 				breakdown.AverageHit = { }
@@ -4514,7 +4552,7 @@ function calcs.offence(env, actor, activeSkill)
 			local portionElemental = (output.AverageHit / PvpTvalue / PvpElemental2 ) ^ PvpElemental1 * PvpTvalue * PvpElemental2 * percentageElemental
 			output.PvpAverageHit = (portionNonElemental + portionElemental) * PvpMultiplier
 			output.PvpAverageDamage = output.PvpAverageHit * output.HitChance / 100
-			output.PvpTotalDPS = output.PvpAverageDamage * (globalOutput.HitSpeed or globalOutput.Speed) * skillData.dpsMultiplier
+			output.PvpTotalDPS = output.PvpAverageDamage * (globalOutput.HitSpeed or globalOutput.Speed) * output.DpsMultiplier
 
 			-- fix for these being nan
 			if output.PvpAverageHit ~= output.PvpAverageHit then
@@ -4576,6 +4614,7 @@ function calcs.offence(env, actor, activeSkill)
 		combineStat("CritBifurcates", "AVERAGE")
 		combineStat("AverageDamage", "DPS")
 		combineStat("PvpAverageDamage", "DPS")
+		combineStat("DpsMultiplier", "DPS")
 		combineStat("TotalDPS", "DPS")
 		combineStat("PvpTotalDPS", "DPS")
 		combineStat("LifeLeechDuration", "DPS")
@@ -4641,12 +4680,44 @@ function calcs.offence(env, actor, activeSkill)
 			skillFlags.showAverage = false
 			skillFlags.notAverage = true
 		end
+		if breakdown then
+			if skillFlags.bothWeaponAttack then
+				for _, critStat in ipairs({ "PreEffectiveCritChance", "CritChance" }) do
+					local combinedBreakdown = { "Both weapons:" }
+					for _, pass in ipairs(passList) do
+						t_insert(combinedBreakdown, pass.label .. ":")
+						if pass.breakdown[critStat] then
+							for _, line in ipairs(pass.breakdown[critStat]) do
+								t_insert(combinedBreakdown, line)
+							end
+						else
+							t_insert(combinedBreakdown, s_format("%.2f%%", pass.output[critStat]))
+						end
+					end
+					t_insert(combinedBreakdown, s_format("= %.2f%% ^8(average)", output[critStat]))
+					breakdown[critStat] = combinedBreakdown
+				end
+			else
+				local handBreakdown = skillFlags.weapon1Attack and breakdown.MainHand or breakdown.OffHand
+				breakdown.PreEffectiveCritChance = handBreakdown.PreEffectiveCritChance
+				breakdown.CritChance = handBreakdown.CritChance
+			end
+			local breakdownSource = skillFlags.weapon1Attack and "MainHand.CritChance" or "OffHand.CritChance"
+			if breakdown.PreEffectiveCritChance then
+				breakdown.PreEffectiveCritChance.breakdownSource = breakdownSource
+			end
+			if breakdown.CritChance then
+				breakdown.CritChance.breakdownSource = breakdownSource
+			end
+		end
 		if skillFlags.bothWeaponAttack then
 			if breakdown then
 				breakdown.AverageDamage = { }
 				t_insert(breakdown.AverageDamage, "Both weapons:")
-				if skillData.doubleHitsWhenDualWielding then
+				if skillData.combinesHitsWhenDualWielding then
 					t_insert(breakdown.AverageDamage, s_format("%.1f + %.1f ^8(skill hits with both weapons at once)", output.MainHand.AverageDamage, output.OffHand.AverageDamage))
+				elseif skillData.doubleHitsWhenDualWielding then
+					t_insert(breakdown.AverageDamage, s_format("(%.1f + %.1f) / 2 ^8(skill hits once with each weapon)", output.MainHand.AverageDamage, output.OffHand.AverageDamage))
 				else
 					t_insert(breakdown.AverageDamage, s_format("(%.1f + %.1f) / 2 ^8(skill alternates weapons)", output.MainHand.AverageDamage, output.OffHand.AverageDamage))
 				end
@@ -4654,7 +4725,7 @@ function calcs.offence(env, actor, activeSkill)
 				if skillFlags.isPvP then
 					breakdown.PvpAverageDamage = { }
 					t_insert(breakdown.PvpAverageDamage, "Both weapons:")
-					if skillData.doubleHitsWhenDualWielding then
+					if skillData.combinesHitsWhenDualWielding then
 						t_insert(breakdown.PvpAverageDamage, s_format("%.1f + %.1f ^8(skill hits with both weapons at once)", output.MainHand.PvpAverageDamage, output.OffHand.PvpAverageDamage))
 					else
 						t_insert(breakdown.PvpAverageDamage, s_format("(%.1f + %.1f) / 2 ^8(skill alternates weapons)", output.MainHand.PvpAverageDamage, output.OffHand.PvpAverageDamage))
@@ -4688,8 +4759,8 @@ function calcs.offence(env, actor, activeSkill)
 				output.HitSpeed and s_format("x %.2f ^8(hit rate)", output.HitSpeed) or s_format("x %.2f ^8(cast rate)", output.Speed),
 			}
 		end
-		if skillData.dpsMultiplier ~= 1 then
-			t_insert(breakdown.TotalDPS, s_format("x %g ^8(DPS multiplier for this skill)", skillData.dpsMultiplier))
+		if output.DpsMultiplier ~= 1 then
+			t_insert(breakdown.TotalDPS, s_format("x %g ^8(DPS multiplier for this skill)", output.DpsMultiplier))
 		end
 		if quantityMultiplier > 1 then
 			t_insert(breakdown.TotalDPS, s_format("x %g ^8(quantity multiplier for this skill)", quantityMultiplier))
@@ -4706,8 +4777,8 @@ function calcs.offence(env, actor, activeSkill)
 				s_format("%.1f ^8(average pvp hit)", output.PvpAverageDamage),
 				output.HitSpeed and s_format("x %.2f ^8(hit rate)", output.HitSpeed) or s_format("x %.2f ^8(%s rate)", output.Speed, rateType),
 			}
-			if skillData.dpsMultiplier ~= 1 then
-				t_insert(breakdown.PvpTotalDPS, s_format("x %g ^8(DPS multiplier for this skill)", skillData.dpsMultiplier))
+			if output.DpsMultiplier ~= 1 then
+				t_insert(breakdown.PvpTotalDPS, s_format("x %g ^8(DPS multiplier for this skill)", output.DpsMultiplier))
 			end
 			if quantityMultiplier > 1 then
 				t_insert(breakdown.PvpTotalDPS, s_format("x %g ^8(quantity multiplier for this skill)", quantityMultiplier))
@@ -4717,7 +4788,7 @@ function calcs.offence(env, actor, activeSkill)
 	end
 
 	if skillFlags.minion then
-		skillData.summonSpeed = output.SummonedMinionsPerCast * (output.HitSpeed or output.Speed) * skillData.dpsMultiplier
+		skillData.summonSpeed = output.SummonedMinionsPerCast * (output.HitSpeed or output.Speed) * output.DpsMultiplier
 	end
 
 	-- Calculate leech rates
@@ -4763,7 +4834,7 @@ function calcs.offence(env, actor, activeSkill)
 		output.ManaLeechGainRate = output.ManaLeechRate + output.ManaOnHitRate
 	end
 	if breakdown then
-		local hitRate = output.HitChance / 100 * (globalOutput.HitSpeed or globalOutput.Speed) * skillData.dpsMultiplier
+		local hitRate = output.HitChance / 100 * (globalOutput.HitSpeed or globalOutput.Speed) * output.DpsMultiplier
 		if skillFlags.leechLife then
 			breakdown.LifeLeech = breakdown.leech(output.LifeLeechInstant, output.LifeLeechInstantRate, output.LifeLeechInstances, output.Life, "LifeLeechRate", output.MaxLifeLeechRate, output.LifeLeechDuration, output.LifeLeechInstantProportion, hitRate)
 		end
@@ -4809,6 +4880,12 @@ function calcs.offence(env, actor, activeSkill)
 		-- Check if the skill can inflict a given ailment
 		local function canDoAilment(ailmentType, damageType, defaultDamageTypes)
 			if not canDeal[damageType] then
+				return false
+			end
+			-- A pseudo-hit (e.g. Infernal Legion) is not a real hit, so it only inflicts
+			-- the one ailment it represents -- on-hit ailment sources (a Poison support,
+			-- etc.) can't ride along on its notional damage.
+			if skillData.pseudoHitAilment and ailmentType ~= skillData.pseudoHitAilment then
 				return false
 			end
 			-- check against input valid types
@@ -5061,7 +5138,7 @@ function calcs.offence(env, actor, activeSkill)
 			local ailmentChance = output[ailment .. "ChanceOnHit"] / 100 * (1 - output.CritChance / 100) + output[ailment .. "ChanceOnCrit"] / 100 * output.CritChance / 100
 
 			-- The average number of ailment that will be active on the enemy at once
-			local ailmentStacks = output.HitChance / 100 * ailmentChance * skillData.dpsMultiplier
+			local ailmentStacks = output.HitChance / 100 * ailmentChance * output.DpsMultiplier
 			local configStacks = enemyDB:Sum("BASE", nil, "Multiplier:" .. ailment .. "Stacks")
 			if not skillData.triggeredOnDeath then
 				if output.Cooldown then
@@ -5103,8 +5180,8 @@ function calcs.offence(env, actor, activeSkill)
 					elseif (globalOutput.HitSpeed or globalOutput.Speed) > 0 then
 						t_insert(globalBreakdown[ailment .. "StackPotential"], s_format("* (%.2f / %.2f) ^8(Duration / Attack Time)", globalOutput[ailment .. "Duration"], (globalOutput.HitTime or output.Time)))
 					end
-					if skillData.dpsMultiplier ~= 1 then
-						t_insert(globalBreakdown[ailment .. "StackPotential"], s_format("* %g ^8(DPS multiplier for this skill)", skillData.dpsMultiplier))
+					if output.DpsMultiplier ~= 1 then
+						t_insert(globalBreakdown[ailment .. "StackPotential"], s_format("* %g ^8(DPS multiplier for this skill)", output.DpsMultiplier))
 					end
 				end
 				t_insert(globalBreakdown[ailment .. "StackPotential"], s_format("/ %d ^8(max number of stacks)", maxStacks))
@@ -5161,6 +5238,10 @@ function calcs.offence(env, actor, activeSkill)
 			-- Over-stacking stacks increases the chance a critical is present
 			local ailmentCritChance = 100 * (1 - m_pow(1 - output.CritChance / 100, m_max(globalOutput[ailment .. "StackPotential"], 1)))
 			globalOutput[ailment .. "MagnitudeEffect"] = calcLib.mod(skillModList, dotCfg, "AilmentMagnitude")
+			if ailment == "Ignite" and enemyDB:Flag(nil, "Condition:IgniteAggravated") then
+				-- Aggravated Ignite deals 100% extra damage (mirrors Aggravated Bleed)
+				globalOutput[ailment .. "MagnitudeEffect"] = globalOutput[ailment .. "MagnitudeEffect"] * 2
+			end
 			local ailmentPercentBase = data.misc[ailment .. "PercentBase"] * globalOutput[ailment .. "MagnitudeEffect"]
 			local baseMinVal = calcAilmentDamage(ailment, ailmentCritChance, hitMin, 0, true) * ailmentPercentBase
 			local baseMaxVal = calcAilmentDamage(ailment, 100, hitMax, critMax, true) * ailmentPercentBase
@@ -5201,6 +5282,37 @@ function calcs.offence(env, actor, activeSkill)
 							local sourceRes = env.modDB:Flag(nil, "Enemy" .. ailmentDamageType .."ResistEqualToYours") and "Your ".. ailmentDamageType .. " Resistance"
 								or (env.partyMembers.modDB:Flag(nil, "Enemy" .. ailmentDamageType .."ResistEqualToYours") and "Party Member ".. ailmentDamageType .. " Resistance" or ailmentDamageType)
 							globalBreakdown[ailment .. "EffMult"] = breakdown.effMult(ailmentDamageType, resist, 0, takenInc, effMult, takenMore, sourceRes, true)
+						end
+					end
+				end
+
+				-- Stormfire: shocked enemies take part of the Ignite as extra Lightning.
+				-- The skill carrying Stormfire might not be the one igniting, so scan every
+				-- active skill rather than just this one. Works for player and minion Ignite.
+				if env.mode_effective and ailment == "Ignite" then
+					local asLightning = 0
+					for _, otherSkill in ipairs(env.player.activeSkillList) do
+						if otherSkill.skillModList then
+							asLightning = m_max(asLightning, otherSkill.skillModList:Sum("BASE", nil, "IgniteAsExtraLightning"))
+						end
+					end
+					if env.minion and env.minion.activeSkillList then
+						for _, otherSkill in ipairs(env.minion.activeSkillList) do
+							if otherSkill.skillModList then
+								asLightning = m_max(asLightning, otherSkill.skillModList:Sum("BASE", nil, "IgniteAsExtraLightning"))
+							end
+						end
+					end
+					if asLightning > 0 and enemyDB:Flag(nil, "Condition:Shocked") then
+						local lightResist = calcResistForType("Lightning", dotCfg)
+						local lightTakenInc = enemyDB:Sum("INC", dotCfg, "DamageTaken", "DamageTakenOverTime", "LightningDamageTaken", "LightningDamageTakenOverTime", "ElementalDamageTaken")
+						local lightTakenMore = enemyDB:More(dotCfg, "DamageTaken", "DamageTakenOverTime", "LightningDamageTaken", "LightningDamageTakenOverTime", "ElementalDamageTaken")
+						local lightEffMult = (1 - lightResist / 100) * (1 + lightTakenInc / 100) * lightTakenMore
+						effMult = effMult + asLightning / 100 * lightEffMult
+						globalOutput[ailment .. "EffMult"] = effMult
+						if globalBreakdown and globalBreakdown[ailment .. "EffMult"] then
+							t_insert(globalBreakdown[ailment .. "EffMult"], s_format("+ %.0f%% as Lightning (Stormfire) x %.3f ^8(Lightning effective DPS modifier)", asLightning, lightEffMult))
+							t_insert(globalBreakdown[ailment .. "EffMult"], s_format("= %.3f ^8(total effective DPS modifier with Lightning)", effMult))
 						end
 					end
 				end
@@ -5463,8 +5575,9 @@ function calcs.offence(env, actor, activeSkill)
 			end
 		end
 
-		-- Calculate damaging ailment values
-		for _, damagingAilment in ipairs({"Bleed", "Poison", "Ignite"}) do
+		-- Calculate damaging ailment values. A pseudo-hit only seeds the ailment it
+		-- represents; that restriction lives in canDoAilment, so the loop stays general.
+		for _, damagingAilment in ipairs({ "Bleed", "Poison", "Ignite" }) do
 			local damageType = data.defaultAilmentDamageTypes[damagingAilment]["DamageType"]
 			if not canDeal[damageType] then
 				for _, type in ipairs(dmgTypeList) do
@@ -5946,7 +6059,7 @@ function calcs.offence(env, actor, activeSkill)
 		elseif band(dotCfg.keywordFlags, KeywordFlag.Trap) ~= 0 then
 			speed = output.TrapThrowingSpeed
 		end
-		output.TotalDot = m_min(output.TotalDotInstance * speed * output.Duration * skillData.dpsMultiplier * quantityMultiplier, data.misc.DotDpsCap)
+		output.TotalDot = m_min(output.TotalDotInstance * speed * output.Duration * output.DpsMultiplier * quantityMultiplier, data.misc.DotDpsCap)
 		output.TotalDotCalcSection = output.TotalDot
 		if breakdown then
 			breakdown.TotalDot = {
@@ -5954,8 +6067,8 @@ function calcs.offence(env, actor, activeSkill)
 				s_format("x %.2f ^8(hits per second)", speed),
 				s_format("x %.2f ^8(skill duration)", output.Duration),
 			}
-			if skillData.dpsMultiplier ~= 1 then
-				t_insert(breakdown.TotalDot, s_format("x %g ^8(DPS multiplier for this skill)", skillData.dpsMultiplier))
+			if output.DpsMultiplier ~= 1 then
+				t_insert(breakdown.TotalDot, s_format("x %g ^8(DPS multiplier for this skill)", output.DpsMultiplier))
 			end
 			if quantityMultiplier > 1 then
 				t_insert(breakdown.TotalDot, s_format("x %g ^8(quantity multiplier for this skill)", quantityMultiplier))
@@ -6108,6 +6221,16 @@ function calcs.offence(env, actor, activeSkill)
 		end
 	end
 
+	-- pseudoHitAilment: the hit deals no damage of its own (e.g. Infernal Legion
+	-- "ignites as though dealing X"), it only seeds its ailment, which was already
+	-- derived from the stored hit damage above. Zero the hit outputs so only the
+	-- ailment/DoT counts toward DPS.
+	if skillData.pseudoHitAilment then
+		output.AverageDamage = 0
+		output.AverageHit = 0
+		output.TotalDPS = 0
+	end
+
 	-- Calculate combined DPS estimate, including DoTs
 	local baseDPS = output[(skillData.showAverage and "AverageDamage") or "TotalDPS"]
 	output.CombinedDPS = baseDPS
@@ -6203,13 +6326,13 @@ function calcs.offence(env, actor, activeSkill)
 	end
 	if skillFlags.impale then
 		local mainHandImpaleDPS, offHandImpaleDPS
-		if skillFlags.attack and skillData.doubleHitsWhenDualWielding and skillFlags.bothWeaponAttack then
+		if skillFlags.attack and skillData.combinesHitsWhenDualWielding and skillFlags.bothWeaponAttack then
 			-- separately combine
-			mainHandImpaleDPS = output.MainHand.impaleStoredHitAvg * ((output.MainHand.ImpaleModifier or 1) - 1) * output.MainHand.HitChance / 100 * skillData.dpsMultiplier
-			offHandImpaleDPS = output.OffHand.impaleStoredHitAvg * ((output.OffHand.ImpaleModifier or 1) - 1) * output.OffHand.HitChance / 100 * skillData.dpsMultiplier
+			mainHandImpaleDPS = output.MainHand.impaleStoredHitAvg * ((output.MainHand.ImpaleModifier or 1) - 1) * output.MainHand.HitChance / 100 * output.DpsMultiplier
+			offHandImpaleDPS = output.OffHand.impaleStoredHitAvg * ((output.OffHand.ImpaleModifier or 1) - 1) * output.OffHand.HitChance / 100 * output.DpsMultiplier
 			output.ImpaleDPS = mainHandImpaleDPS + offHandImpaleDPS
 		else
-			output.ImpaleDPS = output.PhysicalStoredCombinedAvg * ((output.ImpaleModifier or 1) - 1) * output.HitChance / 100 * skillData.dpsMultiplier
+			output.ImpaleDPS = output.PhysicalStoredCombinedAvg * ((output.ImpaleModifier or 1) - 1) * output.HitChance / 100 * output.DpsMultiplier
 		end
 		if skillData.showAverage then
 			output.WithImpaleDPS = output.AverageDamage + output.ImpaleDPS
@@ -6225,7 +6348,7 @@ function calcs.offence(env, actor, activeSkill)
 		output.CombinedDPS = output.CombinedDPS + output.ImpaleDPS
 		if breakdown then
 			breakdown.ImpaleDPS = {}
-			if skillFlags.attack and skillData.doubleHitsWhenDualWielding and skillFlags.bothWeaponAttack then
+			if skillFlags.attack and skillData.combinesHitsWhenDualWielding and skillFlags.bothWeaponAttack then
 				t_insert(breakdown.ImpaleDPS, s_format("Main Hand:"))
 				t_insert(breakdown.ImpaleDPS, s_format("%.2f ^8(MH average physical hit before mitigation)", output.MainHand.impaleStoredHitAvg))
 				t_insert(breakdown.ImpaleDPS, s_format("x %.2f ^8(MH chance to hit)", output.MainHand.HitChance / 100))
@@ -6246,8 +6369,8 @@ function calcs.offence(env, actor, activeSkill)
 		if skillFlags.notAverage then
 			t_insert(breakdown.ImpaleDPS, output.HitSpeed and s_format("x %.2f ^8(hit rate)", output.HitSpeed) or s_format("x %.2f ^8(%s rate)", output.Speed, skillFlags.attack and "attack" or "cast"))
 		end
-		if skillData.dpsMultiplier ~= 1 then
-			t_insert(breakdown.ImpaleDPS, s_format("x %g ^8(dps multiplier for this skill)", skillData.dpsMultiplier))
+		if output.DpsMultiplier ~= 1 then
+			t_insert(breakdown.ImpaleDPS, s_format("x %g ^8(dps multiplier for this skill)", output.DpsMultiplier))
 		end
 		if quantityMultiplier > 1 then
 			t_insert(breakdown.ImpaleDPS, s_format("x %g ^8(quantity multiplier for this skill)", quantityMultiplier))
