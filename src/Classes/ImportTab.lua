@@ -802,8 +802,13 @@ function ImportTabClass:ImportPassiveTreeAndJewels(charData)
 
 	self.build.spec:AddUndoState()
 	self:ImportQuestRewardConfig(charPassiveData.quest_stats)
-	if not self.lastLeague then
-		self.lastLeague = charSelectLeague and charSelectLeague:GetSelValueByKey("league")
+	-- charSelectLeague is a character-SELECT-SCREEN UI dropdown control; it
+	-- doesn't exist headless (no GUI, no character-select screen ever shown).
+	-- Pure UI-state bookkeeping (remembers the last league picked in that
+	-- dropdown) with no effect on the calc engine, so guard it rather than
+	-- crash headless imports (2026-09-02).
+	if not self.lastLeague and charSelectLeague then
+		self.lastLeague = charSelectLeague:GetSelValueByKey("league")
 	end
 	self.build.characterLevel = charData.level
 	self.build.characterLevelAutoMode = false
@@ -1149,10 +1154,44 @@ end
 local rarityMap = { [0] = "NORMAL", "MAGIC", "RARE", "UNIQUE", [9] = "RELIC", [10] = "RELIC", [13] = "RARE", [14] = "UNIQUE" }
 local slotMap = { ["Weapon"] = "Weapon 1", ["Offhand"] = "Weapon 2", ["Weapon2"] = "Weapon 1 Swap", ["Offhand2"] = "Weapon 2 Swap", ["Helm"] = "Helmet", ["BodyArmour"] = "Body Armour", ["Gloves"] = "Gloves", ["Boots"] = "Boots", ["Amulet"] = "Amulet", ["Ring"] = "Ring 1", ["Ring2"] = "Ring 2", ["Ring3"] = "Ring 3", ["Belt"] = "Belt", ["IncursionArmLeft"] = "Arm 2", ["IncursionArmRight"] = "Arm 1", ["IncursionLegLeft"] = "Leg 2", ["IncursionLegRight"] = "Leg 1" }
 
+-- 2026-09-02 addition: the official OAuth character API (poe2-oauth get
+-- /character/poe2/<name>) returns implicit/explicit/fractured/desecrated
+-- mod arrays as RICH objects ({description=..., flags=...}), not the plain
+-- display-text strings this whole function was written against (the legacy
+-- character-window/get-items shape poe.ninja and the desktop app's session-id
+-- import both still use). enchantMods stays a plain string array even in the
+-- new API — the two shapes coexist on the same item. stripGGGMarkup collapses
+-- GGG's [InternalKey|Display Text] / [InternalKey] hover-markup down to the
+-- plain display text modLib.parseMod expects; modLines normalises either
+-- shape (string or {description=...}) to a flat array of such strings.
+local function stripGGGMarkup(text)
+	text = text:gsub("%[([^%]|]+)|([^%]]+)%]", "%2")
+	text = text:gsub("%[([^%]|]+)%]", "%1")
+	return text
+end
+local function modLines(entries)
+	local out = { }
+	if not entries then return out end
+	for _, e in ipairs(entries) do
+		local s = type(e) == "table" and e.description or e
+		if s then t_insert(out, stripGGGMarkup(s)) end
+	end
+	return out
+end
+
 function ImportTabClass:ImportItem(itemData, slotName)
 	if not slotName then
 		if itemData.inventoryId == "PassiveJewels" then
-			slotName = "Jewel ".. self.build.latestTree.jewelSlots[itemData.x + 1]
+			-- 2026-09-02: guard against a jewel socket index the bundled
+			-- passive-tree data doesn't know (tree-version staleness between
+			-- this PoB2 checkout and the live game — several "missing node"
+			-- warnings logged at tree load for this same reason). Skip the
+			-- jewel rather than crash the whole import; the item just won't
+			-- be socketed, an honest, flagged partial rather than a hard stop.
+			local jewelNodeId = self.build.latestTree.jewelSlots[itemData.x + 1]
+			if jewelNodeId then
+				slotName = "Jewel " .. jewelNodeId
+			end
 		elseif itemData.inventoryId == "Flask" then
 			if itemData.x > 1 then
 				slotName = "Charm " .. (itemData.x - 1)
@@ -1313,7 +1352,7 @@ function ImportTabClass:ImportItem(itemData, slotName)
 	item.implicitModLines = { }
 	item.explicitModLines = { }
 	if itemData.enchantMods then
-		for _, line in ipairs(itemData.enchantMods) do
+		for _, line in ipairs(modLines(itemData.enchantMods)) do
 			for line in line:gmatch("[^\n]+") do
 				local modList, extra = modLib.parseMod(line)
 				t_insert(item.enchantModLines, { line = line, extra = extra, mods = modList or { }, enchant = true })
@@ -1321,7 +1360,7 @@ function ImportTabClass:ImportItem(itemData, slotName)
 		end
 	end
 	if itemData.runeMods then
-		for _, line in ipairs(itemData.runeMods) do
+		for _, line in ipairs(modLines(itemData.runeMods)) do
 			for line in line:gmatch("[^\n]+") do
 				local modList, extra = modLib.parseMod(line)
 				t_insert(item.runeModLines, { line = line, extra = extra, mods = modList or { }, enchant = true, rune = true })
@@ -1329,7 +1368,7 @@ function ImportTabClass:ImportItem(itemData, slotName)
 		end
 	end
 	if itemData.implicitMods then
-		for _, line in ipairs(itemData.implicitMods) do
+		for _, line in ipairs(modLines(itemData.implicitMods)) do
 			for line in line:gmatch("[^\n]+") do
 				local modList, extra = modLib.parseMod(line)
 				t_insert(item.implicitModLines, { line = line, extra = extra, mods = modList or { } })
@@ -1337,7 +1376,7 @@ function ImportTabClass:ImportItem(itemData, slotName)
 		end
 	end
 	if itemData.fracturedMods then
-		for _, line in ipairs(itemData.fracturedMods) do
+		for _, line in ipairs(modLines(itemData.fracturedMods)) do
 			for line in line:gmatch("[^\n]+") do
 				local modList, extra = modLib.parseMod(line)
 				t_insert(item.explicitModLines, { line = line, extra = extra, mods = modList or { }, fractured = true })
@@ -1345,7 +1384,7 @@ function ImportTabClass:ImportItem(itemData, slotName)
 		end
 	end
 	if itemData.explicitMods then
-		for _, line in ipairs(itemData.explicitMods) do
+		for _, line in ipairs(modLines(itemData.explicitMods)) do
 			for line in line:gmatch("[^\n]+") do
 				local modList, extra = modLib.parseMod(line)
 				t_insert(item.explicitModLines, { line = line, extra = extra, mods = modList or { } })
