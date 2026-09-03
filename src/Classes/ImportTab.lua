@@ -992,7 +992,16 @@ function ImportTabClass:ImportItemsAndSkills(charData)
 		end
 
 		if gemId then
-			local gemInstance = { level = 20, quality = 0, enabled = true, enableGlobal1 = true, enableGlobal2 = true, count = 1,  gemId = gemId }
+			-- Default to level 1, not 20: the GGG character API omits the "Level"
+			-- property when a gem is at its default/unlevelled state (confirmed
+			-- 2026-09-02/03 dual-leg against moons_army and moonlaif's real PoB
+			-- XML exports -- every support gem that omits "Level" in the char-json
+			-- is level 1 in the true export, zero exceptions across 40+ instances).
+			-- The prior level=20 default silently ran every unlevelled support gem
+			-- (e.g. Muster, Feeding Frenzy II, Heft, Rage III) at gem-cap instead
+			-- of its real level 1, inflating every OAuth-sourced DPS number that
+			-- uses low-invested supports.
+			local gemInstance = { level = 1, quality = 0, enabled = true, enableGlobal1 = true, enableGlobal2 = true, count = 1,  gemId = gemId }
 			gemInstance.support = skillData.support
 			gemInstance.corrupted = skillData.corrupted
 
