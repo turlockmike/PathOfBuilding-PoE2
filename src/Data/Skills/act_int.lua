@@ -5,6 +5,7 @@
 -- Skill data (c) Grinding Gear Games
 --
 			return function(skills, mod, flag, skill)
+---@cast mod SkillModFunction
 skills["ArcPlayer"] = {
 	name = "Arc",
 	baseTypeName = "Arc",
@@ -18613,6 +18614,14 @@ skills["SummonSkeletalReaversPlayer"] = {
 			baseEffectiveness = 0,
 			incrementalEffectiveness = 0.092720001935959,
 			statDescriptionScope = "skill_stat_descriptions",
+			statMap = {
+				["attack_speed_+%_per_rage"] = {
+					mod("MinionModifier", "LIST", { mod = mod("Speed", "INC", nil, ModFlag.Attack, 0, { type = "Multiplier", var = "RageEffect" }) }),
+				},
+				["minion_rage_effect_+%"] = {
+					mod("MinionModifier", "LIST", { mod = mod("RageEffect", "INC", nil) }),
+				},
+			},
 			baseFlags = {
 				spell = true,
 				minion = true,

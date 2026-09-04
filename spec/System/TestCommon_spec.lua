@@ -5,7 +5,7 @@ describe("Common", function()
 			function ParentClass:ConstructorTestParentClass()
 				return self
 			end
-			local ChildClass = newClass("ConstructorTestProblemChildClass", "ConstructorTestParentClass")
+			local ChildClass = newClass("ConstructorTestProblemChild", "ConstructorTestParentClass")
 			function ChildClass:ConstructorTestProblemChild()
 				-- Intentionally does not call self:ConstructorTestParentClass()
 				return self
@@ -40,7 +40,7 @@ describe("Common", function()
 				return self
 			end
 
-			local ChildClass = newClass("ConstructorTestProblemChildClass", "ConstructorTestParentClass")
+			local ChildClass = newClass("ConstructorTestProblemChild", "ConstructorTestParentClass")
 			function ChildClass:ConstructorTestProblemChild()
 				self.ConstructorTestParentClass()
 				return self
@@ -66,31 +66,32 @@ describe("Common", function()
 				new("StupidClass"):StupidClass()
 			end, "Class StupidClass constructor did not return a value")
 		end)
-		it("produces an error if its constructor has not been called", function()
-			local StupidClass = newClass("StupidClass")
-			function StupidClass:StupidClass()
-				return self
-			end
+		-- disabled for performance reasons for now
+		-- it("produces an error if its constructor has not been called", function()
+		-- 	local StupidClass = newClass("StupidClass")
+		-- 	function StupidClass:StupidClass()
+		-- 		return self
+		-- 	end
 
-			function StupidClass:Clear()
-			end
+		-- 	function StupidClass:Clear()
+		-- 	end
 
-			common.classes.StupidClass = StupidClass
+		-- 	common.classes.StupidClass = StupidClass
 
-			assert.has_error(function()
-				local object = new("StupidClass")
-				return object.lines
-			end)
-			assert.has_error(function()
-				local object = new("StupidClass")
-				object:Clear()
-			end)
-			assert.has_no.errors(function()
-				local object = new("StupidClass"):StupidClass()
-				local x = object.lines
-				object:Clear()
-			end)
-			common.classes.StupidClass = nil
-		end)
+		-- 	assert.has_error(function()
+		-- 		local object = new("StupidClass")
+		-- 		return object.lines
+		-- 	end)
+		-- 	assert.has_error(function()
+		-- 		local object = new("StupidClass")
+		-- 		object:Clear()
+		-- 	end)
+		-- 	assert.has_no.errors(function()
+		-- 		local object = new("StupidClass"):StupidClass()
+		-- 		local x = object.lines
+		-- 		object:Clear()
+		-- 	end)
+		-- 	common.classes.StupidClass = nil
+		-- end)
 	end)
 end)

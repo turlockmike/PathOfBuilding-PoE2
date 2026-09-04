@@ -74,14 +74,14 @@ local function processMod(grantedEffect, mod, statName)
 	if type(mod.value) == "table" and mod.value.mod then
 		mod.value.mod.source = "Skill:"..grantedEffect.id
 	end
-	
+
 	for _, tag in ipairs(mod) do
 		if tag.type == "GlobalEffect" then
 			grantedEffect.hasGlobalEffect = true
 			break
 		end
 	end
-	
+
 	local notMinionStat = false
 	for _, statStet in ipairs(grantedEffect.statSets) do
 		if statStet.notMinionStat and statName and (grantedEffect.support or grantedEffect.skillTypes and grantedEffect.skillTypes[SkillType.Buff]) then
@@ -117,16 +117,17 @@ for k, v in pairs(miscData) do
 	data[k] = v
 end
 
----@class StatTable
+---@class PowerStat
 ---@field stat? string stat ID
 ---@field label string A short description of the stat
----@field transform fun(in: number|string): number|string A function to e.g. invert the value, if the stat represents something where lower is better
+---@field transform? fun(in: number|string): number|string A function to e.g. invert the value, if the stat represents something where lower is better
 ---@field combinedOffDef? boolean
 ---@field ignoreForNodes? boolean
 ---@field ignoreForItems? boolean
 ---@field reverseSort? boolean
+---@field itemField string?
 
----@type StatTable[]
+---@type PowerStat[]
 data.powerStatList = {
 	{ stat=nil, label="Offence/Defence", combinedOffDef=true, ignoreForItems=true },
 	{ stat=nil, label="Name", itemField="Name", ignoreForNodes=true, reverseSort=true, transform=function(value) return value:gsub("^The ","") end},
@@ -152,7 +153,7 @@ data.powerStatList = {
 	{ stat="Mana", label="Mana" },
 	{ stat="ManaRegen", label="Mana regen" },
 	{ stat="ManaLeechRate", label="Mana leech" },
-	{ stat="Ward", label="Ward" },
+	{ stat="Ward", label="Runic Ward" },
 	{ stat="Spirit", label="Spirit" },
 	{ stat="Str", label="Strength" },
 	{ stat="Dex", label="Dexterity" },
@@ -175,6 +176,7 @@ data.powerStatList = {
 	{ stat="IgniteChance", label="Ignite Chance" },
 	{ stat="ShockChance", label="Shock Chance" },
 	{ stat="EffectiveMovementSpeedMod", label="Move speed" },
+	{ stat="LightRadiusMod", label="Light Radius" },
 	{ stat="BlockChance", label="Block Chance" },
 	{ stat="SpellBlockChance", label="Spell Block Chance" },
 	{ stat="SpellSuppressionChance", label="Spell Suppression Chance" },
@@ -182,7 +184,7 @@ data.powerStatList = {
 }
 
 ---@param output any Calc output
----@param statTable StatTable Table with stats as in data.powerStatList
+---@param statTable PowerStat Table with stats as in data.powerStatList
 ---@param skipTransform? boolean Whether the stat transform should be skipped. This is useful if you want to e.g. divide two less is better stats
 ---@return number
 function data.powerStatList.GetFromOutput(output, statTable, skipTransform)
@@ -221,6 +223,7 @@ local minionNonApplicableStats = {
 	Int = true,
 	Spirit = true,
 	EffectiveLootRarityMod = true,
+	LightRadiusMod = true,
 }
 for i = 1, #data.powerStatList do
 	local statEntry = data.powerStatList[i]
@@ -260,7 +263,6 @@ data.misc = { -- magic numbers
 	ManaRegenBase = data.characterConstants["character_inherent_mana_regeneration_rate_per_minute_%"] / 60 / 100,
 	EnergyShieldRechargeBase = data.characterConstants["energy_shield_recharge_rate_per_minute_%"] / 60 / 100,
 	EnergyShieldRechargeDelay = 4,
-	WardRechargeDelay = 2,
 	Transfiguration = 0.3,
 	EnemyMaxResist = data.monsterConstants["base_maximum_all_resistances_%"],
 	LeechRateBase = 0.02,
@@ -493,6 +495,9 @@ data.highPrecisionMods = {
 	["EnergyShieldRegenPercent"] = {
 		["BASE"] = 2,
 	},
+	["WardRegenPercent"] = {
+		["BASE"] = 2,
+	},
 	["LifeRegen"] = {
 		["BASE"] = 1,
 	},
@@ -500,6 +505,9 @@ data.highPrecisionMods = {
 		["BASE"] = 1,
 	},
 	["EnergyShieldRegen"] = {
+		["BASE"] = 1,
+	},
+	["WardRegen"] = {
 		["BASE"] = 1,
 	},
 	["RageRegen"] = {
@@ -841,10 +849,10 @@ data.itemTagSpecialExclusionPattern = {
 }
 
 -- Load bosses
-do 
+do
 	---@class BossData
 	data.bosses = LoadModule("Data/Bosses")
-	
+
 	local count, uberCount = 0, 0
 	local armourTotal, evasionTotal = 0, 0
 	local uberArmourTotal, uberEvasionTotal = 0, 0
@@ -1050,7 +1058,7 @@ for gemId, gem in pairs(data.gems) do
 		data.gemGrantedEffectIdForVaalGemId[gem.secondaryGrantedEffectId] = gemId
 		for otherGemId, otherGem in pairs(data.gems) do
 			if otherGem.grantedEffectId == gem.secondaryGrantedEffectId then
-				data.gemVaalGemIdForBaseGemId[gemId] = otherGemId 
+				data.gemVaalGemIdForBaseGemId[gemId] = otherGemId
 				break
 			end
 		end
