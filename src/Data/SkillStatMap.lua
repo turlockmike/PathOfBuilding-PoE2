@@ -3,9 +3,8 @@
 -- Stat to internal modifier mapping table for skills
 -- Stat data (c) Grinding Gear Games
 --
-local mod, flag, skill = ...
-
-return {
+return function(mod, flag, skill)
+	return {
 --
 -- Skill data modifiers
 --
@@ -183,6 +182,9 @@ return {
 	mod("LifeReservePercentPerSpirit", "BASE", nil),
 	div = 100,
 },
+["display_skill_reserves_in_all_weapon_sets"] = {
+	skill("reservesInAllWeaponSets", true),
+},
 ["base_skill_cost_life_instead_of_mana"] = {
 	flag("CostLifeInsteadOfMana"),
 },
@@ -282,6 +284,9 @@ return {
 ["skill_double_hits_when_dual_wielding"] = {
 	skill("doubleHitsWhenDualWielding", true),
 },
+["skill_combines_hits_when_dual_wielding"] = { -- NOTE: This is before PoE2 has "combined hit" dual wield skills, so stat will have to be updated in the future
+	skill("combinesHitsWhenDualWielding", true),
+},
 ["support_spell_echo_number_of_echo_cascades"] = {
 	mod("RepeatCount", "BASE", nil, 0, 0, {type = "SkillType", skillType = SkillType.Cascadable }),
 },
@@ -348,6 +353,9 @@ return {
 },
 ["support_deliberation_movement_speed_penalty_+%_final_while_performing_action"] = {
 	mod("MovementSpeedPenalty", "MORE", nil),
+},
+["movement_speed_penalty_+%_while_performing_action"] = {
+	mod("MovementSpeedPenalty", "INC", nil),
 },
 --
 -- Defensive modifiers
@@ -636,6 +644,9 @@ return {
 ["active_skill_base_radius_+"] = {
 	skill("radiusExtra", nil),
 },
+["infernal_legion_minion_burning_effect_radius"] = {
+	skill("radius", nil),
+},
 ["base_skill_area_of_effect_+%"] = {
 	mod("AreaOfEffect", "INC", nil),
 },
@@ -649,7 +660,7 @@ return {
 	mod("AreaOfEffect", "MORE", nil, 0, 0, { type = "Condition", var = "CastOnFrostbolt" }),
 },
 ["active_skill_area_of_effect_radius_+%_final"] = {
-	mod("AreaOfEffect", "MORE", nil),
+	mod("AreaOfEffectRadius", "MORE", nil),
 },
 ["active_skill_area_of_effect_+%_final"] = {
 	mod("AreaOfEffect", "MORE", nil),
@@ -789,6 +800,9 @@ return {
 ["chance_for_extra_damage_roll_%"] = {
 	mod("LuckyHitsChance", "BASE", nil)
 },
+["chance_for_extra_damage_roll_with_lightning_damage_%"] = {
+	mod("LightningLuckyHitsChance", "BASE", nil)
+},
 ["chance_to_deal_double_damage_%"] = {
 	mod("DoubleDamageChance", "BASE", nil)
 },
@@ -922,6 +936,9 @@ return {
 },
 ["active_skill_damage_+%_final_vs_immobilised_enemies"] = {
 	mod("Damage", "MORE", nil, 0, 0, { type = "ActorCondition", actor = "enemy", var = "Immobilised" }),
+},
+["active_skill_damage_+%_final_vs_burning_enemies"] = {
+	mod("Damage", "MORE", nil, 0, 0, { type = "ActorCondition", actor = "enemy", var = "Burning" }),
 },
 ["base_reduce_enemy_fire_resistance_%"] = {
 	mod("FirePenetration", "BASE", nil),
@@ -1075,7 +1092,10 @@ return {
 	mod("PhysicalDamageGainAsLightning", "BASE", nil),
 },
 ["active_skill_base_physical_damage_%_to_gain_as_cold"] = {
-	mod("SkillPhysicalDamageGainAsCold", "BASE", nil),
+	mod("PhysicalDamageGainAsCold", "BASE", nil),
+},
+["active_skill_base_physical_damage_%_to_gain_as_fire"] = {
+	mod("PhysicalDamageGainAsFire", "BASE", nil),
 },
 ["physical_damage_%_to_add_as_cold"] = {
 	mod("PhysicalDamageGainAsCold", "BASE", nil),
@@ -1101,14 +1121,29 @@ return {
 ["lightning_damage_%_to_add_as_chaos"] = {
 	mod("LightningDamageGainAsChaos", "BASE", nil),
 },
+["active_skill_base_all_damage_%_to_gain_as_physical"] = {
+	mod("DamageGainAsPhysical", "BASE", nil),
+},
+["active_skill_base_all_damage_%_to_gain_as_lightning"] = {
+	mod("DamageGainAsLightning", "BASE", nil),
+},
 ["non_skill_base_all_damage_%_to_gain_as_lightning"] = {
 	mod("DamageGainAsLightning", "BASE", nil),
+},
+["active_skill_base_all_damage_%_to_gain_as_cold"] = {
+	mod("DamageGainAsCold", "BASE", nil),
 },
 ["non_skill_base_all_damage_%_to_gain_as_cold"] = {
 	mod("DamageGainAsCold", "BASE", nil),
 },
+["active_skill_base_all_damage_%_to_gain_as_fire"] = {
+	mod("DamageGainAsFire", "BASE", nil),
+},
 ["non_skill_base_all_damage_%_to_gain_as_fire"] = {
 	mod("DamageGainAsFire", "BASE", nil),
+},
+["active_skill_base_all_damage_%_to_gain_as_chaos"] = {
+	mod("DamageGainAsChaos", "BASE", nil),
 },
 ["non_skill_base_all_damage_%_to_gain_as_chaos"] = {
 	mod("DamageGainAsChaos", "BASE", nil),
@@ -1517,7 +1552,9 @@ return {
 ["active_skill_pins_as_though_dealt_damage_+%_final"] = {
 	mod("EnemyPinBuildup", "MORE", nil),
 },
-
+["hit_damage_immobilisation_multiplier_+%"] = {
+	mod("EnemyImmobilisationBuildup", "INC", nil),
+},
 -- Global flags
 ["never_ignite"] = {
 	flag("CannotIgnite"),
@@ -1756,6 +1793,10 @@ return {
 },
 ["gain_energy_shield_cost_equal_to_intelligence"] = {
 	mod("ESCostNoMult", "BASE", nil, 0, 0, { type = "PercentStat", stat = "Int", percent = 100 }),
+},
+["base_skill_ward_cost_as_%_of_life_and_mana_cost"] = {
+	mod("WardCostAsPercentOfManaCost", "BASE", nil),
+	mod("WardCostAsPercentOfLifeCost", "BASE", nil),
 },
 -- Projectiles
 ["skill_can_fire_arrows"] = {
@@ -2240,7 +2281,7 @@ return {
 	div = 1000,
 },
 ["base_spell_cast_time_ms"] = {
-	mod("TotalCastTime", "BASE", nil),
+	mod("Speed", "BASE", nil, ModFlag.Cast),
 	div = 1000,
 },
 ["active_skill_cast_speed_+%_final"] = {
@@ -2524,6 +2565,9 @@ return {
 ["companions_are_gigantic"] = {
 	mod("MinionModifier", "LIST", { mod = flag("Gigantic") }),
 },
+["companion_takes_%_damage_before_you_from_support"] = {
+	mod("TakenFromCompanionBeforeYou", "BASE", nil, 0, 0, { type = "GlobalEffect", effectType = "Buff", unscalable = true }),
+},
 ["minion_damage_+%_final_per_different_elemental_ailment_on_target"] = {
 	mod("MinionModifier", "LIST", { mod = mod("Damage", "MORE", nil, 0, 0, { type = "ActorCondition", actor = "enemy", var = "Electrocuted" }) }),
 	mod("MinionModifier", "LIST", { mod = mod("Damage", "MORE", nil, 0, 0, { type = "ActorCondition", actor = "enemy", var = "Frozen" }) }),
@@ -2757,6 +2801,9 @@ return {
 ["base_reservation_efficiency_+%"] = {
 	mod("ReservationEfficiency", "INC", nil)
 },
+["base_spirit_reservation_efficiency_+%"] = {
+	mod("SpiritReservationEfficiency", "INC", nil)
+},
 -- Brand
 ["sigil_attached_target_damage_+%_final"] = {
 	mod("Damage", "MORE", nil, 0, 0, { type = "MultiplierThreshold", var = "BrandsAttachedToEnemy", threshold = 1 }),
@@ -2816,6 +2863,9 @@ return {
 -- Ice Crystal
 ["frost_wall_maximum_life"] = {
 	mod("IceCrystalLifeBase", "BASE", nil),
+},
+["ice_crystal_maximum_life_+%"] = {
+	mod("IceCrystalLife", "INC", nil),
 },
 -- Parry
 ["base_parry_buff_damage_taken_+%_final_to_apply"] = {
@@ -2900,6 +2950,7 @@ return {
 },
 ["gain_x_rage_on_melee_hit"] = {
 	flag("Condition:CanGainRage", { type = "GlobalEffect", effectType = "Buff", effectName = "Rage" } ),
+	mod("MinionModifier", "LIST", { mod = flag("Condition:CanGainRage") }),
 },
 ["gain_x%_of_maximum_rage_on_melee_hit"] = {
 	flag("Condition:CanGainRage", { type = "GlobalEffect", effectType = "Buff", effectName = "Rage" } ),
@@ -2954,6 +3005,9 @@ return {
 ["minions_deal_no_damage"] = {
 	mod("MinionModifier", "LIST", { mod = mod("Damage", "MORE", nil) }),
 	value = -100,
+},
+["minion_damage_taken_+%"] = {
+	mod("MinionModifier", "LIST", { mod = mod("DamageTaken", "INC", nil) }),
 },
 ["base_cannot_be_stunned"] = {
 	flag("StunImmune"),
@@ -3177,3 +3231,4 @@ return {
 	-- Display Only
 },
 }
+end
